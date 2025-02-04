@@ -43,3 +43,6 @@ A Flutter-based mobile application connecting blood donors with recipients in re
 1. Clone repository:
 2. flutter pub get
 3. flutter run
+   
+### Contact
+Email: chethankrishna2022@gmail.com
