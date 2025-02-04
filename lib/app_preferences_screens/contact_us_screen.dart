@@ -1,19 +1,49 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ContactUsPage extends StatelessWidget {
   final TextEditingController nameController = TextEditingController();
   final TextEditingController messageController = TextEditingController();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  void _sendEmail() async {
+  Future<void> _submitQuery(BuildContext context) async {
     final String name = nameController.text.trim();
     final String message = messageController.text.trim();
+    final User? user = _auth.currentUser;
 
     if (name.isEmpty || message.isEmpty) {
-      print('Please fill in both name and message');
+      _showSnackBar(
+          context, 'Please fill in both name and message', Colors.red);
       return;
     }
 
+    try {
+      // Save to Firestore queries collection
+      await _firestore.collection('queries').add({
+        'name': name,
+        'message': message,
+        'phoneNumber': user?.phoneNumber,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
+      // Send email
+      await _sendEmail(name, message);
+
+      _showSnackBar(context, 'Message submitted successfully!', Colors.green);
+
+      // Clear text fields after successful submission
+      nameController.clear();
+      messageController.clear();
+    } catch (e) {
+      _showSnackBar(
+          context, 'Error submitting message: ${e.toString()}', Colors.red);
+    }
+  }
+
+  Future<void> _sendEmail(String name, String message) async {
     final String email = 'chethankrishna2022@gmail.com';
     final String subject = 'Message from $name';
     final String body = 'Hello, $message';
@@ -27,17 +57,23 @@ class ContactUsPage extends StatelessWidget {
       },
     );
 
-    // Check if the mailto URL can be launched
     if (await canLaunchUrl(emailUri)) {
       try {
         await launchUrl(emailUri);
       } catch (e) {
         print('Error launching email: $e');
       }
-    } else {
-      print(
-          'Could not launch email client. Make sure an email app is set as default.');
     }
+  }
+
+  void _showSnackBar(BuildContext context, String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: color,
+        duration: Duration(seconds: 3),
+      ),
+    );
   }
 
   @override
@@ -65,7 +101,7 @@ class ContactUsPage extends StatelessWidget {
           children: [
             _buildHeader(),
             SizedBox(height: 30),
-            _buildContactForm(),
+            _buildContactForm(context),
           ],
         ),
       ),
@@ -96,7 +132,7 @@ class ContactUsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildContactForm() {
+  Widget _buildContactForm(BuildContext context) {
     return Card(
       elevation: 5,
       shape: RoundedRectangleBorder(
@@ -131,7 +167,7 @@ class ContactUsPage extends StatelessWidget {
             ),
             SizedBox(height: 20),
             ElevatedButton(
-              onPressed: _sendEmail,
+              onPressed: () => _submitQuery(context),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blue[800],
                 padding: EdgeInsets.symmetric(horizontal: 40, vertical: 15),

@@ -169,31 +169,136 @@ class _ReceiveBloodScreenState extends State<ReceiveBloodScreen> {
 
     return Card(
       margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      child: ListTile(
-        title: Text(userData['name'] ?? 'Anonymous'),
-        subtitle: Column(
+      child: Padding(
+        padding: EdgeInsets.all(12),
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Blood Type: ${userData['bloodType'] ?? 'Unknown'}'),
-            if (userData['age'] != null) Text('Age: ${userData['age']}'),
-            if (userData['gender'] != null)
-              Text('Gender: ${userData['gender']}'),
-            if (distance != null)
-              Text('Distance: ${distance.toStringAsFixed(1)} km'),
-            if (userData['location']?['zipCode'] != null)
-              Text('Zip Code: ${userData['location']['zipCode']}'),
+            // Profile Picture Section
+            CircleAvatar(
+              radius: 30,
+              backgroundColor: Colors.grey[200],
+              backgroundImage: userData['profileImageUrl'] != null &&
+                      userData['profileImageUrl'].isNotEmpty
+                  ? NetworkImage(userData['profileImageUrl'])
+                  : null,
+              child: userData['profileImageUrl'] == null ||
+                      userData['profileImageUrl'].isEmpty
+                  ? Icon(Icons.person_2_rounded,
+                      size: 30, color: Colors.blueGrey)
+                  : null,
+            ),
+            SizedBox(width: 16),
+
+            // Details Section
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Name and Blood Type
+                  Row(
+                    children: [
+                      Text(
+                        userData['name'] ?? 'Anonymous',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(width: 10),
+                      Container(
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.red[50],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          userData['bloodType'] ?? 'Unknown',
+                          style: TextStyle(
+                            color: Colors.red[800],
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 8),
+
+                  // Age and Gender
+                  if (userData['age'] != null || userData['gender'] != null)
+                    Row(
+                      children: [
+                        if (userData['age'] != null)
+                          Text('${userData['age']} years'),
+                        if (userData['age'] != null &&
+                            userData['gender'] != null)
+                          Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 8),
+                            child:
+                                Text('•', style: TextStyle(color: Colors.grey)),
+                          ),
+                        if (userData['gender'] != null)
+                          Text(userData['gender']),
+                      ],
+                    ),
+
+                  // Distance and Location
+                  if (distance != null ||
+                      userData['location']?['zipCode'] != null)
+                    Padding(
+                      padding: EdgeInsets.only(top: 4),
+                      child: Row(
+                        children: [
+                          if (distance != null)
+                            Row(
+                              children: [
+                                Icon(Icons.location_on,
+                                    size: 16, color: Colors.grey),
+                                SizedBox(width: 4),
+                                Text('${distance.toStringAsFixed(1)} km'),
+                              ],
+                            ),
+                          if (distance != null &&
+                              userData['location']?['zipCode'] != null)
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 8),
+                              child: Text('•',
+                                  style: TextStyle(color: Colors.grey)),
+                            ),
+                          if (userData['location']?['zipCode'] != null)
+                            Row(
+                              children: [
+                                Icon(Icons.map, size: 16, color: Colors.grey),
+                                SizedBox(width: 4),
+                                Text(userData['location']['zipCode']),
+                              ],
+                            ),
+                        ],
+                      ),
+                    ),
+
+                  // Contact Button
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: IconButton(
+                      icon: Icon(Icons.contact_phone, color: Colors.blue),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                OtherProfileScreen(userData: userData),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
-        trailing: Icon(Icons.contact_phone),
-        onTap: () {
-          // Navigate to OtherProfileScreen with the user data
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => OtherProfileScreen(userData: userData),
-            ),
-          );
-        },
       ),
     );
   }

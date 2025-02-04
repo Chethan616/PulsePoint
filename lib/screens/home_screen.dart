@@ -1,11 +1,15 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:pulsepoint_v2/app_preferences_screens/contact_us_screen.dart';
 import 'package:pulsepoint_v2/screens/login_screen.dart';
 import 'package:pulsepoint_v2/screens/settings_screen.dart';
+import 'package:pulsepoint_v2/user_screens/history_sreen.dart';
 import 'package:pulsepoint_v2/user_screens/profile_screen.dart';
 import 'package:pulsepoint_v2/providers/auth_service.dart';
 import 'package:provider/provider.dart';
+import 'package:pulsepoint_v2/widgets/donate_blood.dart';
 import 'package:pulsepoint_v2/widgets/receive_blood.dart';
+import 'package:pulsepoint_v2/widgets/request_blood.dart';
 
 class HomeScreen extends StatelessWidget {
   @override
@@ -16,7 +20,7 @@ class HomeScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text("Pulse Point"),
         elevation: 0,
-        backgroundColor: Colors.lightBlue[100],
+        backgroundColor: Colors.blue[200],
         iconTheme: IconThemeData(color: Colors.blue[800]),
       ),
       drawer: _buildDrawer(context, authService),
@@ -29,11 +33,14 @@ class HomeScreen extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Colors.lightBlue[50]!,
-            Colors.lightBlue[100]!,
+            Colors.red, // Blue shade
+            Colors.redAccent, // Light Blue
+            Colors.blue, // Very Light Blue
+            Colors.blueAccent, // Sky Blue
           ],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          stops: [0.0, 0.4, 0.7, 1.0],
         ),
       ),
       child: Center(
@@ -42,26 +49,27 @@ class HomeScreen extends StatelessWidget {
           children: [
             _buildBloodActionButton(
               context: context,
-              title: "Donate Blood",
+              title: "Donors near you",
               subtitle: "Save a life today",
               icon: Icons.favorite_border,
-              gradientColors: [Colors.redAccent, Colors.deepOrange],
+              gradientColors: [Colors.purpleAccent, Colors.blueAccent],
               onPressed: () {
-                // Handle donate blood action
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => DonateBloodScreen()),
+                );
               },
             ),
             SizedBox(height: 30),
             _buildBloodActionButton(
               context: context,
-              title: "Receive Blood",
-              subtitle: "Find donors near you",
-              icon: Icons.health_and_safety,
-              gradientColors: [Colors.blueAccent, Colors.lightBlue],
+              title: "Save a Life Today",
+              subtitle: "Request blood \nor become a lifesaving donor",
+              icon: Icons.local_hospital,
+              gradientColors: [Colors.purpleAccent, Colors.blueAccent],
               onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => ReceiveBloodScreen()),
-                );
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (context) => BloodPage()));
               },
             ),
           ],
@@ -89,59 +97,62 @@ class HomeScreen extends StatelessWidget {
             child: child,
           );
         },
-        child: Container(
-          width: MediaQuery.of(context).size.width * 0.8,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: gradientColors[0].withOpacity(0.3),
-                blurRadius: 15,
-                offset: Offset(0, 5),
-              )
-            ],
-            gradient: LinearGradient(
-              colors: gradientColors,
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20),
+          child: Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(20),
-              onTap: onPressed,
-              splashColor: Colors.white.withOpacity(0.2),
-              highlightColor: Colors.transparent,
-              child: Padding(
-                padding: EdgeInsets.all(20),
-                child: Row(
-                  children: [
-                    Icon(icon, color: Colors.white, size: 40),
-                    SizedBox(width: 20),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.1,
+              boxShadow: [
+                BoxShadow(
+                  color: gradientColors[0].withOpacity(0.3),
+                  blurRadius: 15,
+                  offset: Offset(0, 5),
+                )
+              ],
+              gradient: LinearGradient(
+                colors: gradientColors,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: onPressed,
+                splashColor: Colors.white.withOpacity(0.2),
+                highlightColor: Colors.transparent,
+                child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Row(
+                    children: [
+                      Icon(icon, color: Colors.white, size: 40),
+                      SizedBox(width: 20),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.1,
+                            ),
                           ),
-                        ),
-                        SizedBox(height: 5),
-                        Text(
-                          subtitle,
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.9),
-                            fontSize: 16,
+                          SizedBox(height: 5),
+                          Text(
+                            subtitle,
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.9),
+                              fontSize: 16,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -251,10 +262,24 @@ class HomeScreen extends StatelessWidget {
               ),
               _buildDrawerItem(
                 context,
+                icon: Icons.person_outline,
+                title: 'Contact Us',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => ContactUsPage()),
+                  );
+                },
+              ),
+              _buildDrawerItem(
+                context,
                 icon: Icons.history,
                 title: 'History',
                 onTap: () {
-                  // Handle history navigation
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => HistoryScreen()),
+                  );
                 },
               ),
               Divider(color: Colors.blue[200]!, height: 1),
