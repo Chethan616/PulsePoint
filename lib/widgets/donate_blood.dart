@@ -215,6 +215,10 @@ class _DonateBloodScreenState extends State<DonateBloodScreen> {
     Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
     String recipientUserId = userDoc.id;
 
+    // Add userId to userData for proper navigation to OtherProfileScreen
+    userData = Map<String, dynamic>.from(userData);
+    userData['uid'] = recipientUserId;
+
     double? distance =
         _currentUserPosition != null && userData['location'] != null
             ? calculateDistance(
@@ -232,18 +236,29 @@ class _DonateBloodScreenState extends State<DonateBloodScreen> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CircleAvatar(
-              radius: 30,
-              backgroundColor: Colors.grey[200],
-              backgroundImage: userData['profileImageUrl'] != null &&
-                      userData['profileImageUrl'].isNotEmpty
-                  ? NetworkImage(userData['profileImageUrl'])
-                  : null,
-              child: userData['profileImageUrl'] == null ||
-                      userData['profileImageUrl'].isEmpty
-                  ? Icon(Icons.person_2_rounded,
-                      size: 30, color: Colors.blueGrey)
-                  : null,
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        OtherProfileScreen(userData: userData),
+                  ),
+                );
+              },
+              child: CircleAvatar(
+                radius: 30,
+                backgroundColor: Colors.grey[200],
+                backgroundImage: userData['profileImageUrl'] != null &&
+                        userData['profileImageUrl'].isNotEmpty
+                    ? NetworkImage(userData['profileImageUrl'])
+                    : null,
+                child: userData['profileImageUrl'] == null ||
+                        userData['profileImageUrl'].isEmpty
+                    ? Icon(Icons.person_2_rounded,
+                        size: 30, color: Colors.blueGrey)
+                    : null,
+              ),
             ),
             SizedBox(width: 16),
             Expanded(
@@ -252,11 +267,23 @@ class _DonateBloodScreenState extends State<DonateBloodScreen> {
                 children: [
                   Row(
                     children: [
-                      Text(
-                        userData['name'] ?? 'Anonymous',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  OtherProfileScreen(userData: userData),
+                            ),
+                          );
+                        },
+                        child: Text(
+                          userData['name'] ?? 'Anonymous',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue[800],
+                          ),
                         ),
                       ),
                       SizedBox(width: 10),

@@ -1,10 +1,60 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:pulsepoint_v2/widgets/star_rating.dart';
+import 'package:pulsepoint_v2/utilities/rating_utils.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
-class OtherProfileScreen extends StatelessWidget {
+class OtherProfileScreen extends StatefulWidget {
   final Map<String, dynamic> userData;
 
   OtherProfileScreen({required this.userData});
+
+  @override
+  _OtherProfileScreenState createState() => _OtherProfileScreenState();
+}
+
+class _OtherProfileScreenState extends State<OtherProfileScreen> {
+  bool _hasRated = false;
+  double _selectedRating = 0;
+  final TextEditingController _commentController = TextEditingController();
+  bool _isSubmitting = false;
+  bool _isOwnProfile = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkIfOwnProfile();
+    _checkIfUserHasRated();
+  }
+
+  void _checkIfOwnProfile() {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null && widget.userData['uid'] == currentUser.uid) {
+      setState(() {
+        _isOwnProfile = true;
+      });
+    }
+  }
+
+  Future<void> _checkIfUserHasRated() async {
+    // Don't bother checking if it's own profile
+    if (_isOwnProfile) return;
+
+    // Ensure we have a valid user ID
+    final userId = widget.userData['uid'] ?? '';
+    if (userId.isEmpty) {
+      print("Warning: User ID is empty, can't check rating status");
+      return;
+    }
+
+    final hasRated = await RatingUtils.hasUserRated(userId);
+
+    if (mounted) {
+      setState(() {
+        _hasRated = hasRated;
+      });
+    }
+  }
 
   void _makePhoneCall(String phoneNumber) async {
     final Uri phoneUri = Uri.parse('tel:$phoneNumber');
@@ -94,7 +144,7 @@ class OtherProfileScreen extends StatelessWidget {
                     )
                   : null,
             ),
-            SizedBox(height: 16),
+            SizedBox(height: 8),
             Text(
               userData['name'],
               style: TextStyle(
@@ -103,7 +153,224 @@ class OtherProfileScreen extends StatelessWidget {
                 fontWeight: FontWeight.bold,
               ),
             ),
+            SizedBox(height: 4),
+            // Display user rating only if not own profile
+            if (!_isOwnProfile)
+              RatingDisplay(
+                rating: userData['averageRating']?.toDouble() ?? 0.0,
+                totalRatings: userData['totalRatings'] ?? 0,
+                starSize: 20,
+                textStyle: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submitRating() async {
+    if (_selectedRating == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please select a rating')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    // Ensure we have a valid user ID
+    final userId = widget.userData['uid'] ?? '';
+    if (userId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: Cannot identify user to rate')),
+      );
+      setState(() {
+        _isSubmitting = false;
+      });
+      return;
+    }
+
+    try {
+      final success = await RatingUtils.rateUser(
+        recipientUserId: userId,
+        rating: _selectedRating,
+        comment: _commentController.text,
+      );
+
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Rating submitted successfully')),
+        );
+        setState(() {
+          _hasRated = true;
+          _isSubmitting = false;
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to submit rating')),
+        );
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    } catch (e) {
+      print('Error submitting rating: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('An error occurred: ${e.toString()}')),
+      );
+      setState(() {
+        _isSubmitting = false;
+      });
+    }
+  }
+
+  Widget _buildRatingSection() {
+    // Don't show rating section if it's the user's own profile
+    if (_isOwnProfile) {
+      return SizedBox.shrink();
+    }
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    if (_hasRated) {
+      return Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Card(
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.check_circle,
+                      color: Colors.green,
+                      size: 24,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'You have already rated this user',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Card(
+        elevation: 3,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(15),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.star_rate_rounded,
+                    color: Colors.amber,
+                    size: 22,
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    'Rate this user',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              Divider(height: 24),
+              Center(
+                child: Text(
+                  'How was your experience?',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDark ? Colors.white70 : Colors.black54,
+                  ),
+                ),
+              ),
+              SizedBox(height: 16),
+              Center(
+                child: StarRating(
+                  rating: _selectedRating,
+                  onRatingChanged: (rating) {
+                    setState(() {
+                      _selectedRating = rating;
+                    });
+                  },
+                  size: 40,
+                  color: Colors.amber,
+                ),
+              ),
+              SizedBox(height: 20),
+              TextField(
+                controller: _commentController,
+                decoration: InputDecoration(
+                  labelText: 'Add a comment (optional)',
+                  hintText: 'Share your experience...',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  prefixIcon: Icon(Icons.comment),
+                ),
+                maxLines: 3,
+              ),
+              SizedBox(height: 16),
+              Center(
+                child: ElevatedButton(
+                  onPressed: _isSubmitting ? null : _submitRating,
+                  style: ElevatedButton.styleFrom(
+                    padding: EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    backgroundColor: Colors.blue,
+                  ),
+                  child: _isSubmitting
+                      ? SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : Text(
+                          'Submit Rating',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -113,12 +380,15 @@ class OtherProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Profile of ${userData['name']}'),
+        title: Text(_isOwnProfile
+            ? 'My Profile'
+            : 'Profile of ${widget.userData['name']}'),
       ),
       body: SingleChildScrollView(
         child: Column(
           children: [
-            _buildProfileHeader(userData),
+            _buildProfileHeader(widget.userData),
+            _buildRatingSection(),
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
@@ -126,14 +396,14 @@ class OtherProfileScreen extends StatelessWidget {
                   _buildInfoCard(
                     Icons.phone,
                     'Phone Number',
-                    userData['phoneNumber'] ?? 'N/A',
+                    widget.userData['phoneNumber'] ?? 'N/A',
                     isPhone: true,
                   ),
                   SizedBox(height: 16),
                   _buildInfoCard(
                     Icons.favorite,
                     'Blood Type',
-                    userData['bloodType'] ?? 'N/A',
+                    widget.userData['bloodType'] ?? 'N/A',
                   ),
                   SizedBox(height: 16),
                   Row(
@@ -142,7 +412,7 @@ class OtherProfileScreen extends StatelessWidget {
                         child: _buildInfoCard(
                           Icons.height,
                           'Height',
-                          '${userData['height']} cm',
+                          '${widget.userData['height'] ?? 'N/A'} ${widget.userData['height'] != null ? 'cm' : ''}',
                         ),
                       ),
                       SizedBox(width: 16),
@@ -150,20 +420,20 @@ class OtherProfileScreen extends StatelessWidget {
                         child: _buildInfoCard(
                           Icons.monitor_weight,
                           'Weight',
-                          '${userData['weight']} kg',
+                          '${widget.userData['weight'] ?? 'N/A'} ${widget.userData['weight'] != null ? 'kg' : ''}',
                         ),
                       ),
                     ],
                   ),
                   SizedBox(height: 24),
-                  if (userData['healthAddictions'] != null &&
-                      userData['healthAddictions'].toString().isNotEmpty)
+                  if (widget.userData['healthAddictions'] != null &&
+                      widget.userData['healthAddictions'].toString().isNotEmpty)
                     Column(
                       children: [
                         _buildInfoCard(
                           Icons.healing,
                           'Health Information',
-                          userData['healthAddictions'],
+                          widget.userData['healthAddictions'],
                         ),
                         SizedBox(height: 24),
                       ],

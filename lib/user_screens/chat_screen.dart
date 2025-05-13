@@ -4,6 +4,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:pulsepoint_v2/utilities/location_utils.dart';
 import 'package:pulsepoint_v2/widgets/location_message.dart';
+import 'package:pulsepoint_v2/widgets/star_rating.dart';
+import 'package:pulsepoint_v2/utilities/rating_utils.dart';
+import 'package:pulsepoint_v2/user_screens/other_profiles.dart';
+import 'package:pulsepoint_v2/services/notification_service.dart';
 
 class ChatScreen extends StatefulWidget {
   final String conversationId;
@@ -76,6 +80,15 @@ class _ChatScreenState extends State<ChatScreen> {
         'lastMessageTimestamp': FieldValue.serverTimestamp(),
       });
 
+      // Send push notification to recipient
+      await NotificationService().sendChatNotification(
+        recipientUserId: widget.recipientUserId,
+        senderId: user.uid,
+        senderName: userData['name'] ?? 'Anonymous',
+        message: _messageController.text,
+        conversationId: widget.conversationId,
+      );
+
       _messageController.clear();
     } catch (e) {
       print('Error sending message: $e');
@@ -125,11 +138,169 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  void _showRatingDialog() {
+    double selectedRating = 0;
+    final TextEditingController commentController = TextEditingController();
+    bool isSubmitting = false;
+
+    // Check if we have a valid recipient ID
+    if (widget.recipientUserId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: Cannot identify user to rate')),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: Text(
+                'Rate ${recipientData?['name'] ?? 'User'}',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('How was your experience with this user?'),
+                  SizedBox(height: 16),
+                  StarRating(
+                    rating: selectedRating,
+                    size: 40,
+                    color: Colors.amber,
+                    onRatingChanged: (rating) {
+                      setStateDialog(() {
+                        selectedRating = rating;
+                      });
+                    },
+                  ),
+                  SizedBox(height: 16),
+                  TextField(
+                    controller: commentController,
+                    decoration: InputDecoration(
+                      labelText: 'Add a comment (optional)',
+                      hintText: 'Share your experience...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      prefixIcon: Icon(Icons.comment),
+                    ),
+                    maxLines: 3,
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () async {
+                          if (selectedRating == 0) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Please select a rating')),
+                            );
+                            return;
+                          }
+
+                          setStateDialog(() {
+                            isSubmitting = true;
+                          });
+
+                          try {
+                            final success = await RatingUtils.rateUser(
+                              recipientUserId: widget.recipientUserId,
+                              rating: selectedRating,
+                              comment: commentController.text,
+                              interactionType: 'chat',
+                              interactionId: widget.conversationId,
+                            );
+
+                            if (success) {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                    content:
+                                        Text('Rating submitted successfully')),
+                              );
+                            } else {
+                              setStateDialog(() {
+                                isSubmitting = false;
+                              });
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                    content: Text('Failed to submit rating')),
+                              );
+                            }
+                          } catch (e) {
+                            print('Error submitting rating: $e');
+                            setStateDialog(() {
+                              isSubmitting = false;
+                            });
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                  content: Text(
+                                      'An error occurred: ${e.toString()}')),
+                            );
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                  ),
+                  child: isSubmitting
+                      ? SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text('Submit'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(recipientData?['name'] ?? 'Chat'),
+        title: GestureDetector(
+          onTap: () => _navigateToUserProfile(),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (recipientData != null &&
+                  recipientData!['profileImageUrl'] != null)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: CircleAvatar(
+                    radius: 16,
+                    backgroundImage:
+                        NetworkImage(recipientData!['profileImageUrl']),
+                  ),
+                ),
+              Text(recipientData?['name'] ?? 'Chat'),
+            ],
+          ),
+        ),
+        actions: [
+          // Add rating button
+          IconButton(
+            icon: Icon(Icons.star),
+            tooltip: 'Rate user',
+            onPressed: _showRatingDialog,
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -150,9 +321,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   return Center(child: Text('Error loading messages'));
                 }
 
-                return // Continue from where you left off in the build method
-
-                    ListView.builder(
+                return ListView.builder(
                   reverse: true,
                   controller: _scrollController,
                   itemCount: snapshot.data!.docs.length,
@@ -217,14 +386,17 @@ class _ChatScreenState extends State<ChatScreen> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               if (!isMe && recipientData != null)
-                CircleAvatar(
-                  radius: 16,
-                  backgroundImage: recipientData!['profileImageUrl'] != null
-                      ? NetworkImage(recipientData!['profileImageUrl'])
-                      : null,
-                  child: recipientData!['profileImageUrl'] == null
-                      ? Icon(Icons.person, size: 16)
-                      : null,
+                GestureDetector(
+                  onTap: () => _navigateToUserProfile(),
+                  child: CircleAvatar(
+                    radius: 16,
+                    backgroundImage: recipientData!['profileImageUrl'] != null
+                        ? NetworkImage(recipientData!['profileImageUrl'])
+                        : null,
+                    child: recipientData!['profileImageUrl'] == null
+                        ? Icon(Icons.person, size: 16)
+                        : null,
+                  ),
                 ),
               Flexible(
                 child: Container(
@@ -277,6 +449,30 @@ class _ChatScreenState extends State<ChatScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  // Navigate to the user's profile
+  void _navigateToUserProfile() {
+    if (recipientData == null) return;
+
+    // Make sure 'uid' field is added to recipientData
+    final userData = Map<String, dynamic>.from(recipientData!);
+    userData['uid'] = widget.recipientUserId;
+
+    // Check if user is navigating to their own profile
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null && currentUser.uid == widget.recipientUserId) {
+      // Navigate to the main profile screen instead
+      Navigator.pushNamed(context, '/profile');
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => OtherProfileScreen(userData: userData),
       ),
     );
   }

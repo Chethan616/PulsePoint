@@ -135,17 +135,48 @@ class _LoginPageState extends State<LoginPage>
   }
 
   Widget _buildLogo(bool isDark) {
+    // Use reliable Lottie URLs and add error handling
+    final darkModeUrl =
+        'https://assets4.lottiefiles.com/packages/lf20_tutvdkg0.json'; // Heart pulse animation
+    final lightModeUrl =
+        'https://assets5.lottiefiles.com/packages/lf20_tpa51dr0.json'; // Blood donation animation (more reliable)
+
     return Column(
       children: [
-        Lottie.network(
-          isDark
-              ? 'https://assets4.lottiefiles.com/packages/lf20_tutvdkg0.json' // Heart pulse animation for dark mode
-              : 'https://assets10.lottiefiles.com/packages/lf20_mzbdc6a4.json', // Blood donation animation for light mode
+        Container(
           height: 180,
           width: 180,
-          repeat: true,
-          animate: true,
-          fit: BoxFit.contain,
+          child: Center(
+            child: Lottie.network(
+              isDark ? darkModeUrl : lightModeUrl,
+              repeat: true,
+              animate: true,
+              fit: BoxFit.contain,
+              frameRate: FrameRate.max,
+              errorBuilder: (context, error, stackTrace) {
+                // Fallback to a static icon if Lottie fails to load
+                return Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      isDark ? Icons.favorite : Icons.bloodtype,
+                      size: 80,
+                      color: isDark ? Colors.redAccent : Colors.red,
+                    ),
+                    SizedBox(height: 10),
+                    Text(
+                      "PulsePoint",
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
         ),
         SizedBox(height: 20),
         Text(

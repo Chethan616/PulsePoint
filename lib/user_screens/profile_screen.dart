@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
+import 'package:pulsepoint_v2/widgets/star_rating.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -234,6 +235,87 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
+  Widget _buildUserRating() {
+    final averageRating = userData?['averageRating']?.toDouble() ?? 0.0;
+    final totalRatings = userData?['totalRatings'] ?? 0;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Card(
+      elevation: 3,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.star_rate_rounded,
+                  color: Colors.amber,
+                  size: 24,
+                ),
+                SizedBox(width: 8),
+                Text(
+                  'Your Rating',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 12),
+            RatingDisplay(
+              rating: averageRating,
+              totalRatings: totalRatings,
+              starSize: 28,
+              showCount: true,
+            ),
+            SizedBox(height: 8),
+            Text(
+              totalRatings > 0
+                  ? 'Based on feedback from other users'
+                  : 'No ratings yet',
+              style: TextStyle(
+                fontSize: 13,
+                color: isDark ? Colors.grey[400] : Colors.grey[600],
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+            if (totalRatings > 0)
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    averageRating >= 4.0
+                        ? 'Excellent Reputation!'
+                        : averageRating >= 3.0
+                            ? 'Good Standing'
+                            : 'Average Rating',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildInfoCard(IconData icon, String title, String value,
       {bool isPhone = false, bool isEditable = false}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -410,6 +492,10 @@ class _ProfileScreenState extends State<ProfileScreen>
       padding: const EdgeInsets.all(16.0),
       child: Column(
         children: [
+          // User Rating Card at the top of stats tab
+          _buildUserRating(),
+          SizedBox(height: 16),
+
           // Donation stats cards
           Row(
             children: [

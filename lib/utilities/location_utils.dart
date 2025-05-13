@@ -56,6 +56,47 @@ class LocationUtils {
     }
   }
 
+  // Get user location without requiring BuildContext
+  static Future<Map<String, dynamic>?> getUserLocation() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    // Check if location services are enabled
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      print('Location services are disabled');
+      return null;
+    }
+
+    // Check for permission
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        print('Location permissions are denied');
+        return null;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      print('Location permissions are permanently denied');
+      return null;
+    }
+
+    // Get the current position
+    try {
+      Position position = await Geolocator.getCurrentPosition();
+      return {
+        'latitude': position.latitude,
+        'longitude': position.longitude,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      };
+    } catch (e) {
+      print('Error getting location: $e');
+      return null;
+    }
+  }
+
   // Show dialog to enable location services
   static void _showLocationServicesDialog(BuildContext context) {
     showDialog(

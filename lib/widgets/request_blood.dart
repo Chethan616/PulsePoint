@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pulsepoint_v2/utilities/location_utils.dart';
 import 'package:pulsepoint_v2/widgets/location_message.dart';
+import 'package:pulsepoint_v2/user_screens/other_profiles.dart';
+import 'package:pulsepoint_v2/services/notification_service.dart';
 
 class BloodPage extends StatefulWidget {
   @override
@@ -70,10 +72,15 @@ class _BloodPageState extends State<BloodPage> {
                 children: [
                   Row(
                     children: [
-                      CircleAvatar(
-                        backgroundImage: NetworkImage(data['profileImageUrl'] ??
-                            'default_image_url'), // Default image URL
-                        radius: 20,
+                      GestureDetector(
+                        onTap: () => _navigateToUserProfile(data['authorId'],
+                            data['authorName'], data['profileImageUrl']),
+                        child: CircleAvatar(
+                          backgroundImage: NetworkImage(
+                              data['profileImageUrl'] ??
+                                  'default_image_url'), // Default image URL
+                          radius: 20,
+                        ),
                       ),
                       SizedBox(width: 8),
                       Text(
@@ -95,7 +102,17 @@ class _BloodPageState extends State<BloodPage> {
               Row(
                 children: [
                   Icon(Icons.person, size: 16),
-                  Text(' ${data['authorName']}  •  '),
+                  GestureDetector(
+                    onTap: () => _navigateToUserProfile(data['authorId'],
+                        data['authorName'], data['profileImageUrl']),
+                    child: Text(
+                      ' ${data['authorName']}  •  ',
+                      style: TextStyle(
+                        color: Colors.blue,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
                   Icon(Icons.access_time, size: 16),
                   Text(
                       ' ${DateFormat('MMM dd, HH:mm').format(data['timestamp'].toDate())}'),
@@ -111,52 +128,130 @@ class _BloodPageState extends State<BloodPage> {
   void _showCreateThreadDialog() {
     TextEditingController titleController = TextEditingController();
     TextEditingController contentController = TextEditingController();
+    String selectedBloodType = 'Any';
+
+    // Get options for blood type dropdown
+    final bloodTypes = [
+      'Any',
+      'A+',
+      'A-',
+      'B+',
+      'B-',
+      'AB+',
+      'AB-',
+      'O+',
+      'O-'
+    ];
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('New Blood Request'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: titleController,
-              decoration: InputDecoration(labelText: 'Title'),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Text('New Blood Request'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: titleController,
+                  decoration: InputDecoration(labelText: 'Title'),
+                ),
+                SizedBox(height: 10),
+                TextField(
+                  controller: contentController,
+                  decoration: InputDecoration(labelText: 'Details'),
+                  maxLines: 3,
+                ),
+                SizedBox(height: 16),
+                Text(
+                  'Blood Type Needed:',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  value: selectedBloodType,
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12),
+                  ),
+                  items: bloodTypes.map((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    );
+                  }).toList(),
+                  onChanged: (newValue) {
+                    setState(() {
+                      selectedBloodType = newValue!;
+                    });
+                  },
+                ),
+              ],
             ),
-            TextField(
-              controller: contentController,
-              decoration: InputDecoration(labelText: 'Details'),
-              maxLines: 3,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (titleController.text.isNotEmpty &&
+                    contentController.text.isNotEmpty) {
+                  // Start with location fetch to avoid delays later
+                  Map<String, dynamic>? locationData =
+                      await LocationUtils.getUserLocation();
+                  double? latitude, longitude;
+
+                  // Extract location data
+                  if (locationData != null) {
+                    latitude = locationData['latitude'];
+                    longitude = locationData['longitude'];
+                  }
+
+                  // Get user data
+                  String userName = await _getUserName();
+                  String profileImageUrl = await _getUserProfileImageUrl();
+
+                  // Create the blood request
+                  DocumentReference docRef =
+                      await _firestore.collection('blood_requests').add({
+                    'title': titleController.text,
+                    'content': contentController.text,
+                    'bloodType': selectedBloodType,
+                    'authorId': _currentUser?.uid,
+                    'authorName': userName,
+                    'timestamp': DateTime.now(),
+                    'status': 'open',
+                    'replyCount': 0,
+                    'profileImageUrl': profileImageUrl,
+                    'location': locationData,
+                  });
+
+                  Navigator.pop(context);
+
+                  // Send notifications to nearby users if location is available
+                  if (latitude != null && longitude != null) {
+                    await NotificationService().sendBloodRequestNotifications(
+                      bloodType: selectedBloodType,
+                      latitude: latitude,
+                      longitude: longitude,
+                      requestId: docRef.id,
+                      title: 'Urgent Blood Request Nearby',
+                      body:
+                          '${userName} needs ${selectedBloodType} blood: ${titleController.text}',
+                    );
+                  }
+                }
+              },
+              child: Text('Post'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (titleController.text.isNotEmpty &&
-                  contentController.text.isNotEmpty) {
-                await _firestore.collection('blood_requests').add({
-                  'title': titleController.text,
-                  'content': contentController.text,
-                  'authorId': _currentUser?.uid,
-                  'authorName': await _getUserName(),
-                  'timestamp': DateTime.now(),
-                  'status': 'open',
-                  'replyCount': 0, // Initialize the reply count
-                  'profileImageUrl':
-                      await _getUserProfileImageUrl(), // Add profile image URL
-                });
-
-                Navigator.pop(context);
-              }
-            },
-            child: Text('Post'),
-          ),
-        ],
       ),
     );
   }
@@ -199,6 +294,64 @@ class _BloodPageState extends State<BloodPage> {
         ],
       ),
     );
+  }
+
+  // Method to navigate to user profile
+  void _navigateToUserProfile(
+      String userId, String userName, String? profileImageUrl) async {
+    if (userId.isEmpty) return;
+
+    // Check if this is the current user's profile
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null && currentUser.uid == userId) {
+      // Navigate to the main profile screen instead
+      Navigator.pushNamed(context, '/profile');
+      return;
+    }
+
+    try {
+      // Fetch complete user data
+      DocumentSnapshot userDoc =
+          await _firestore.collection('users').doc(userId).get();
+
+      if (userDoc.exists) {
+        Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
+        // Ensure uid field is set
+        userData['uid'] = userId;
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => OtherProfileScreen(userData: userData),
+          ),
+        );
+      } else {
+        // Fallback if user doc doesn't exist
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => OtherProfileScreen(userData: {
+              'uid': userId,
+              'name': userName,
+              'profileImageUrl': profileImageUrl,
+            }),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error navigating to user profile: $e');
+      // Fallback with minimal data
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => OtherProfileScreen(userData: {
+            'uid': userId,
+            'name': userName,
+            'profileImageUrl': profileImageUrl,
+          }),
+        ),
+      );
+    }
   }
 }
 
@@ -316,14 +469,27 @@ class _ThreadDetailPageState extends State<ThreadDetailPage> {
           children: [
             Row(
               children: [
-                CircleAvatar(
-                  backgroundImage: NetworkImage(data['profileImageUrl'] ??
-                      'default_image_url'), // Default image URL
-                  radius: 16,
+                GestureDetector(
+                  onTap: () => _navigateToUserProfile(data['authorId'],
+                      data['authorName'], data['profileImageUrl']),
+                  child: CircleAvatar(
+                    backgroundImage: NetworkImage(data['profileImageUrl'] ??
+                        'default_image_url'), // Default image URL
+                    radius: 16,
+                  ),
                 ),
                 SizedBox(width: 8),
-                Text(data['authorName'],
-                    style: TextStyle(fontWeight: FontWeight.bold)),
+                GestureDetector(
+                  onTap: () => _navigateToUserProfile(data['authorId'],
+                      data['authorName'], data['profileImageUrl']),
+                  child: Text(
+                    data['authorName'],
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue,
+                    ),
+                  ),
+                ),
                 SizedBox(width: 8),
                 Text(DateFormat('MMM dd, HH:mm')
                     .format(data['timestamp'].toDate())),
@@ -477,5 +643,63 @@ class _ThreadDetailPageState extends State<ThreadDetailPage> {
         await _firestore.collection('users').doc(_currentUser?.uid).get();
     return userDoc['profileImageUrl'] ??
         'default_image_url'; // Default profile image URL
+  }
+
+  // Navigate to user profile
+  void _navigateToUserProfile(
+      String userId, String userName, String? profileImageUrl) async {
+    if (userId.isEmpty) return;
+
+    // Check if this is the current user's profile
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null && currentUser.uid == userId) {
+      // Navigate to the main profile screen instead
+      Navigator.pushNamed(context, '/profile');
+      return;
+    }
+
+    try {
+      // Fetch complete user data
+      DocumentSnapshot userDoc =
+          await _firestore.collection('users').doc(userId).get();
+
+      if (userDoc.exists) {
+        Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
+        // Ensure uid field is set
+        userData['uid'] = userId;
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => OtherProfileScreen(userData: userData),
+          ),
+        );
+      } else {
+        // Fallback if user doc doesn't exist
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => OtherProfileScreen(userData: {
+              'uid': userId,
+              'name': userName,
+              'profileImageUrl': profileImageUrl,
+            }),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error navigating to user profile: $e');
+      // Fallback with minimal data
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => OtherProfileScreen(userData: {
+            'uid': userId,
+            'name': userName,
+            'profileImageUrl': profileImageUrl,
+          }),
+        ),
+      );
+    }
   }
 }

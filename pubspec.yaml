@@ -51,6 +51,10 @@ dependencies:
   pin_code_fields: ^8.0.1
   lottie: ^3.3.1
   cached_network_image: ^3.4.1
+  # Push notification related packages
+  firebase_messaging: ^15.2.5
+  flutter_local_notifications: ^19.2.0
+  http: ^1.1.0
   
 dev_dependencies:
   flutter_test:
