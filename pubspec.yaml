@@ -47,7 +47,11 @@ dependencies:
   provider: ^6.0.5
   flutter_email_sender: ^6.0.3
   intl_phone_field: ^3.1.0
-
+  intl: ^0.20.2
+  pin_code_fields: ^8.0.1
+  lottie: ^3.3.1
+  cached_network_image: ^3.4.1
+  
 dev_dependencies:
   flutter_test:
     sdk: flutter

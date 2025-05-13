@@ -59,6 +59,56 @@ class OtherProfileScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildProfileHeader(Map<String, dynamic> userData) {
+    return Container(
+      height: 200,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.blue[800]!, Colors.blue[400]!],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircleAvatar(
+              radius: 40,
+              backgroundColor: Colors.white,
+              backgroundImage: userData['profileImageUrl'] != null &&
+                      userData['profileImageUrl'].isNotEmpty
+                  ? NetworkImage(userData['profileImageUrl'])
+                  : NetworkImage(
+                      'https://img.freepik.com/free-photo/abstract-surface-textures-white-concrete-stone-wall_74190-8189.jpg?t=st=1738665301~exp=1738668901~hmac=aed49d0e26cf7e9f1caa3fc2910c22b5eb47db0eb71f7da81578bbf8a0c357dc&w=1380',
+                    ) as ImageProvider,
+              child: userData['profileImageUrl'] == null ||
+                      userData['profileImageUrl'].isEmpty
+                  ? Text(
+                      userData['name'][0],
+                      style: TextStyle(
+                        fontSize: 40,
+                        color: Colors.blue[800],
+                        fontWeight: FontWeight.bold,
+                      ),
+                    )
+                  : null,
+            ),
+            SizedBox(height: 16),
+            Text(
+              userData['name'],
+              style: TextStyle(
+                fontSize: 24,
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -68,44 +118,7 @@ class OtherProfileScreen extends StatelessWidget {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            Container(
-              height: 200,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.blue[800]!, Colors.blue[400]!],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
-              ),
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircleAvatar(
-                      radius: 40,
-                      backgroundColor: Colors.white,
-                      child: Text(
-                        userData['name'][0],
-                        style: TextStyle(
-                          fontSize: 40,
-                          color: Colors.blue[800],
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: 16),
-                    Text(
-                      userData['name'],
-                      style: TextStyle(
-                        fontSize: 24,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            _buildProfileHeader(userData),
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
@@ -143,6 +156,18 @@ class OtherProfileScreen extends StatelessWidget {
                     ],
                   ),
                   SizedBox(height: 24),
+                  if (userData['healthAddictions'] != null &&
+                      userData['healthAddictions'].toString().isNotEmpty)
+                    Column(
+                      children: [
+                        _buildInfoCard(
+                          Icons.healing,
+                          'Health Information',
+                          userData['healthAddictions'],
+                        ),
+                        SizedBox(height: 24),
+                      ],
+                    ),
                   Container(
                     padding: EdgeInsets.all(16),
                     decoration: BoxDecoration(

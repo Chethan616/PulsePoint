@@ -1,303 +1,600 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart' hide ActivityType;
+import 'package:url_launcher/url_launcher.dart';
 import 'package:pulsepoint_v2/screens/login_screen.dart';
 import 'package:pulsepoint_v2/screens/settings_screen.dart';
+import 'package:pulsepoint_v2/screens/history_screen.dart';
 import 'package:pulsepoint_v2/user_screens/profile_screen.dart';
 import 'package:pulsepoint_v2/providers/auth_service.dart';
+import 'package:pulsepoint_v2/providers/theme_provider.dart';
+import 'package:pulsepoint_v2/models/activity_record.dart';
+import 'package:pulsepoint_v2/providers/activity_service.dart';
 import 'package:provider/provider.dart';
-import 'package:pulsepoint_v2/widgets/receive_blood.dart';
+import 'package:pulsepoint_v2/widgets/donate_blood.dart';
+import 'package:pulsepoint_v2/widgets/request_blood.dart';
+import 'dart:math' as math;
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
+  @override
+  _HomeScreenState createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
+  bool _isLoading = false;
+  String _locationMessage = '';
+  late ActivityService _activityService;
+  late AnimationController _animationController;
+  late String _currentTip;
+  final List<String> _healthTips = [
+    "Stay hydrated! Drink at least 8 glasses of water daily for better blood flow.",
+    "Regular blood donation can reduce the risk of heart disease and lower iron stores.",
+    "A single blood donation can save up to three lives - be a hero today!",
+    "Males can donate blood every 3 months and females every 4 months safely.",
+    "After donating blood, your body replaces the lost red blood cells within 4-8 weeks.",
+    "Eat iron-rich foods like spinach and meat before donating blood to boost hemoglobin.",
+    "Blood donation helps in reducing the risk of cancer by eliminating excess iron.",
+    "Walking 30 minutes daily improves cardiovascular health and blood circulation.",
+    "Avoid fatty foods before donating blood as it can affect the quality of donation.",
+    "Getting enough sleep (7-8 hours) helps maintain healthy blood pressure levels."
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _activityService = ActivityService();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+
+    // Select a random tip at initialization
+    final random = math.Random();
+    _currentTip = _healthTips[random.nextInt(_healthTips.length)];
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final authService = Provider.of<AuthService>(context);
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+
+    // If animation is showing the sun but we're in dark mode, or vice versa, fix it
+    if ((isDark && _animationController.value == 0) ||
+        (!isDark && _animationController.value == 1)) {
+      _animationController.value = isDark ? 1 : 0;
+    }
 
     return Scaffold(
       appBar: AppBar(
-        title: Text("Pulse Point"),
+        title: Text(
+          "PulsePoint",
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         elevation: 0,
-        backgroundColor: Colors.lightBlue[100],
-        iconTheme: IconThemeData(color: Colors.blue[800]),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.settings),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => SettingsScreen()),
+              );
+            },
+          ),
+        ],
       ),
-      drawer: _buildDrawer(context, authService),
-      body: _buildBody(context),
+      drawer: _buildDrawer(context, authService, isDark),
+      body: _buildBody(context, isDark),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          // Add emergency feature
+          _showEmergencyOptions(context);
+        },
+        backgroundColor: Theme.of(context).colorScheme.tertiary,
+        child: Icon(Icons.emergency),
+        tooltip: 'Emergency',
+      ),
     );
   }
 
-  Widget _buildBody(BuildContext context) {
+  Widget _buildBody(BuildContext context, bool isDark) {
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.lightBlue[50]!,
-            Colors.lightBlue[100]!,
-          ],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
+        color: Theme.of(context).scaffoldBackgroundColor,
       ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _buildBloodActionButton(
-              context: context,
-              title: "Donate Blood",
-              subtitle: "Save a life today",
-              icon: Icons.favorite_border,
-              gradientColors: [Colors.redAccent, Colors.deepOrange],
-              onPressed: () {
-                // Handle donate blood action
-              },
-            ),
-            SizedBox(height: 30),
-            _buildBloodActionButton(
-              context: context,
-              title: "Receive Blood",
-              subtitle: "Find donors near you",
-              icon: Icons.health_and_safety,
-              gradientColors: [Colors.blueAccent, Colors.lightBlue],
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => ReceiveBloodScreen()),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBloodActionButton({
-    required BuildContext context,
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required List<Color> gradientColors,
-    required VoidCallback onPressed,
-  }) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: TweenAnimationBuilder(
-        tween: Tween<double>(begin: 0.95, end: 1.0),
-        duration: Duration(milliseconds: 200),
-        builder: (context, scale, child) {
-          return Transform.scale(
-            scale: scale as double,
-            child: child,
-          );
-        },
-        child: Container(
-          width: MediaQuery.of(context).size.width * 0.8,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: gradientColors[0].withOpacity(0.3),
-                blurRadius: 15,
-                offset: Offset(0, 5),
-              )
-            ],
-            gradient: LinearGradient(
-              colors: gradientColors,
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(20),
-              onTap: onPressed,
-              splashColor: Colors.white.withOpacity(0.2),
-              highlightColor: Colors.transparent,
-              child: Padding(
+      child: SafeArea(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Welcome Section
+              Container(
                 padding: EdgeInsets.all(20),
-                child: Row(
-                  children: [
-                    Icon(icon, color: Colors.white, size: 40),
-                    SizedBox(width: 20),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.1,
-                          ),
-                        ),
-                        SizedBox(height: 5),
-                        Text(
-                          subtitle,
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.9),
-                            fontSize: 16,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDrawer(BuildContext context, AuthService authService) {
-    return Drawer(
-      child: SizedBox(
-        width: 250,
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Colors.lightBlue[50]!,
-                Colors.lightBlue[100]!,
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-          child: ListView(
-            padding: EdgeInsets.zero,
-            children: <Widget>[
-              DrawerHeader(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [
-                      Colors.lightBlue[200]!,
-                      Colors.lightBlue[400]!,
-                    ],
+                    colors: isDark
+                        ? [Color(0xFF1E1E1E), Color(0xFF2A2A2A)]
+                        : [Color(0xFF6200EE), Color(0xFF9C27B0)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                ),
-                child: Stack(
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Text(
-                          'PulsePoint',
-                          style: TextStyle(
-                            color: Colors.blue[900],
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'Welcome back!',
-                          style: TextStyle(
-                            color: Colors.blue[800],
-                            fontSize: 16,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Positioned(
-                      top: 5,
-                      right: 5,
-                      child: IconButton(
-                        icon: Icon(Icons.settings, color: Colors.blue[800]),
-                        onPressed: () {
-                          Navigator.pop(context);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => SettingsScreen(),
-                            ),
-                          );
-                        },
-                      ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: isDark
+                          ? Colors.black.withOpacity(0.3)
+                          : Color(0xFF6200EE).withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: Offset(0, 4),
                     ),
                   ],
                 ),
-              ),
-              _buildDrawerItem(
-                context,
-                icon: Icons.person_outline,
-                title: 'Profile',
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    PageRouteBuilder(
-                      pageBuilder: (context, animation, secondaryAnimation) =>
-                          ProfileScreen(),
-                      transitionsBuilder:
-                          (context, animation, secondaryAnimation, child) {
-                        var curve = Curves.easeInOut;
-                        var tween = Tween(begin: 0.0, end: 1.0)
-                            .chain(CurveTween(curve: curve));
-                        return FadeTransition(
-                          opacity: animation.drive(tween),
-                          child: child,
-                        );
-                      },
-                      transitionDuration: Duration(milliseconds: 500),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.favorite_rounded,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                        SizedBox(width: 12),
+                        Text(
+                          "Welcome to PulsePoint",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
+                    SizedBox(height: 12),
+                    Text(
+                      "Connecting lifesavers with those in need",
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.9),
+                        fontSize: 16,
+                      ),
+                    ),
+                    // Weather widget or health tip could go here
+                    SizedBox(height: 16),
+                    _buildHealthTip(isDark),
+                  ],
+                ),
+              ),
+
+              SizedBox(height: 24),
+
+              // Main Action Buttons
+              Text(
+                "What would you like to do?",
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              SizedBox(height: 16),
+
+              // Find Nearby Hospitals Button
+              _buildActionButton(
+                title: "Find Nearby Hospitals",
+                subtitle: "Locate medical facilities around you",
+                icon: Icons.local_hospital_rounded,
+                iconColor: Colors.white,
+                backgroundColor: isDark ? Color(0xFF03DAC6) : Color(0xFF03DAC5),
+                onPressed: () {
+                  _findNearbyHospitals();
+                  // Record this activity
+                  _activityService.recordActivity(
+                    type: ActivityType.hospitalVisit,
+                    title: "Hospital Search",
+                    description: "Searched for nearby hospitals",
                   );
                 },
               ),
-              _buildDrawerItem(
-                context,
-                icon: Icons.history,
-                title: 'History',
-                onTap: () {
-                  // Handle history navigation
+
+              SizedBox(height: 16),
+
+              // Donors Near You Button
+              _buildActionButton(
+                title: "Donors Near You",
+                subtitle: "Save a life today",
+                icon: Icons.favorite_rounded,
+                iconColor: Colors.white,
+                backgroundColor: isDark ? Color(0xFFCF6679) : Color(0xFFFF3D71),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => DonateBloodScreen()),
+                  );
+                  // Record this activity
+                  _activityService.recordActivity(
+                    type: ActivityType.bloodDonation,
+                    title: "Blood Donation",
+                    description: "Viewed blood donors",
+                  );
                 },
               ),
-              Divider(color: Colors.blue[200]!, height: 1),
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Container(
+
+              SizedBox(height: 16),
+
+              // Request Blood Button
+              _buildActionButton(
+                title: "Request Blood",
+                subtitle: "Request blood from donors",
+                icon: Icons.bloodtype_rounded,
+                iconColor: Colors.white,
+                backgroundColor: isDark ? Color(0xFFBB86FC) : Color(0xFF9C27B0),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => BloodPage()),
+                  );
+                  // Record this activity
+                  _activityService.recordActivity(
+                    type: ActivityType.bloodRequest,
+                    title: "Blood Request",
+                    description: "Requested blood from donors",
+                  );
+                },
+              ),
+
+              SizedBox(height: 16),
+
+              // Blood Compatibility Chart
+              _buildBloodCompatibilityCard(isDark),
+
+              SizedBox(height: 24),
+
+              // Location Status Message
+              if (_isLoading)
+                Center(
+                  child: CircularProgressIndicator(),
+                ),
+
+              if (_locationMessage.isNotEmpty)
+                Container(
+                  padding: EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.red,
-                        Colors.red,
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(8),
+                    color: isDark ? Color(0xFF2A2A2A) : Color(0xFFE8DEF8),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: isDark
+                            ? Colors.grey.shade800
+                            : Color(0xFF6200EE).withOpacity(0.3)),
                   ),
-                  child: OutlinedButton.icon(
-                    icon: Icon(Icons.logout, color: Colors.white),
-                    label: Text(
-                      'Logout',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: Colors.red),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(_locationMessage),
                       ),
-                      padding:
-                          EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                    ),
-                    onPressed: () async {
-                      await authService.signOut();
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(builder: (context) => LoginPage()),
-                      );
-                    },
+                    ],
                   ),
                 ),
-              ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHealthTip(bool isDark) {
+    return GestureDetector(
+      onTap: () {
+        // Generate a new random tip when tapped
+        setState(() {
+          final random = math.Random();
+          _currentTip = _healthTips[random.nextInt(_healthTips.length)];
+        });
+      },
+      child: Container(
+        padding: EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: isDark ? Colors.black38 : Colors.white24,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.lightbulb_outline, color: Colors.yellow),
+                SizedBox(width: 8),
+                Text(
+                  "Health Tip",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                Spacer(),
+                Icon(
+                  Icons.refresh,
+                  color: Colors.white70,
+                  size: 16,
+                ),
+              ],
+            ),
+            SizedBox(height: 6),
+            Text(
+              _currentTip,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBloodCompatibilityCard(bool isDark) {
+    return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Blood Type Compatibility",
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+            SizedBox(height: 12),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                columns: [
+                  DataColumn(label: Text("Blood Type")),
+                  DataColumn(label: Text("Can Donate To")),
+                  DataColumn(label: Text("Can Receive From")),
+                ],
+                rows: [
+                  DataRow(cells: [
+                    DataCell(Text("A+")),
+                    DataCell(Text("A+, AB+")),
+                    DataCell(Text("A+, A-, O+, O-")),
+                  ]),
+                  DataRow(cells: [
+                    DataCell(Text("A-")),
+                    DataCell(Text("A+, A-, AB+, AB-")),
+                    DataCell(Text("A-, O-")),
+                  ]),
+                  DataRow(cells: [
+                    DataCell(Text("B+")),
+                    DataCell(Text("B+, AB+")),
+                    DataCell(Text("B+, B-, O+, O-")),
+                  ]),
+                  DataRow(cells: [
+                    DataCell(Text("B-")),
+                    DataCell(Text("B+, B-, AB+, AB-")),
+                    DataCell(Text("B-, O-")),
+                  ]),
+                  DataRow(cells: [
+                    DataCell(Text("AB+")),
+                    DataCell(Text("AB+")),
+                    DataCell(Text("All Types")),
+                  ]),
+                  DataRow(cells: [
+                    DataCell(Text("AB-")),
+                    DataCell(Text("AB+, AB-")),
+                    DataCell(Text("A-, B-, AB-, O-")),
+                  ]),
+                  DataRow(cells: [
+                    DataCell(Text("O+")),
+                    DataCell(Text("A+, B+, AB+, O+")),
+                    DataCell(Text("O+, O-")),
+                  ]),
+                  DataRow(cells: [
+                    DataCell(Text("O-")),
+                    DataCell(Text("All Types")),
+                    DataCell(Text("O-")),
+                  ]),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color iconColor,
+    required Color backgroundColor,
+    required VoidCallback onPressed,
+  }) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardTheme.color,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onPressed,
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+            child: Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: backgroundColor,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: iconColor, size: 28),
+                ),
+                SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  size: 16,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDrawer(
+      BuildContext context, AuthService authService, bool isDark) {
+    return Drawer(
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).navigationDrawerTheme.backgroundColor,
+        ),
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: <Widget>[
+            DrawerHeader(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: isDark
+                      ? [Color(0xFF2A2A2A), Color(0xFF1E1E1E)]
+                      : [Color(0xFF6200EE), Color(0xFF9C27B0)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Text(
+                    'PulsePoint',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Welcome back!',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            _buildDrawerItem(
+              context,
+              icon: Icons.person_outline,
+              title: 'Profile',
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => ProfileScreen()),
+                );
+              },
+            ),
+            _buildDrawerItem(
+              context,
+              icon: Icons.history,
+              title: 'Activity History',
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => HistoryScreen()),
+                );
+              },
+            ),
+            _buildDrawerItem(
+              context,
+              icon: Icons.local_hospital,
+              title: 'Nearby Hospitals',
+              onTap: () {
+                Navigator.pop(context);
+                _findNearbyHospitals();
+              },
+            ),
+            Divider(),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: ElevatedButton.icon(
+                icon: Icon(Icons.logout),
+                label: Text('Logout'),
+                style: ElevatedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  backgroundColor: Theme.of(context).colorScheme.tertiary,
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                onPressed: () async {
+                  await authService.signOut();
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (context) => LoginPage()),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -310,22 +607,155 @@ class HomeScreen extends StatelessWidget {
     required VoidCallback onTap,
   }) {
     return ListTile(
-      leading: Icon(icon, color: Colors.blue[800], size: 24),
+      leading: Icon(icon, size: 24),
       title: Text(
         title,
         style: TextStyle(
-          color: Colors.blue[800],
           fontSize: 16,
-          fontWeight: FontWeight.w500,
         ),
       ),
-      contentPadding: EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      minLeadingWidth: 24,
-      horizontalTitleGap: 12,
-      dense: true,
       onTap: onTap,
-      hoverColor: Colors.blue[100],
-      visualDensity: VisualDensity.compact,
+    );
+  }
+
+  Future<void> _findNearbyHospitals() async {
+    setState(() {
+      _isLoading = true;
+      _locationMessage = '';
+    });
+
+    try {
+      // Check location permissions
+      LocationPermission permission = await Geolocator.checkPermission();
+
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          setState(() {
+            _isLoading = false;
+            _locationMessage = 'Location permissions are denied';
+          });
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        setState(() {
+          _isLoading = false;
+          _locationMessage =
+              'Location permissions are permanently denied, cannot request permissions.';
+        });
+        return;
+      }
+
+      // Get current position
+      Position position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high);
+
+      // Open Google Maps with nearby hospitals query
+      final url =
+          'https://www.google.com/maps/search/?api=1&query=hospitals+near+me&query_place_id=${position.latitude},${position.longitude}';
+
+      if (await canLaunchUrl(Uri.parse(url))) {
+        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+        setState(() {
+          _isLoading = false;
+          _locationMessage = 'Showing nearby hospitals on Google Maps';
+        });
+      } else {
+        setState(() {
+          _isLoading = false;
+          _locationMessage = 'Could not launch maps. Please try again.';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _locationMessage = 'Error: ${e.toString()}';
+      });
+    }
+  }
+
+  void _showEmergencyOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.emergency, color: Colors.red),
+                  SizedBox(width: 12),
+                  Text(
+                    'Emergency Options',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 20),
+              _buildEmergencyButton(
+                icon: Icons.phone,
+                title: 'Call Emergency Services',
+                onTap: () async {
+                  Navigator.pop(context);
+                  final call = Uri.parse('tel:108');
+                  if (await canLaunchUrl(call)) {
+                    launchUrl(call);
+                  }
+                },
+              ),
+              _buildEmergencyButton(
+                icon: Icons.local_hospital,
+                title: 'Nearby Hospitals',
+                onTap: () {
+                  Navigator.pop(context);
+                  _findNearbyHospitals();
+                },
+              ),
+              _buildEmergencyButton(
+                icon: Icons.bloodtype,
+                title: 'Request Blood Urgently',
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => BloodPage()),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildEmergencyButton({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: Colors.red),
+      title: Text(title),
+      onTap: onTap,
+      tileColor: Colors.red.withOpacity(0.1),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+      ),
+      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      minLeadingWidth: 0,
+      trailing: Icon(Icons.arrow_forward_ios, size: 16),
+      mouseCursor: SystemMouseCursors.click,
     );
   }
 }

@@ -302,7 +302,7 @@ class _SignUpPageState extends State<SignUpPage> {
                           child: TextFormField(
                             controller: healthaddictionsController,
                             decoration: _inputDecoration(
-                                "Health Details (e.g., allergies, conditions)",
+                                "Health Details (Optional: allergies, conditions)",
                                 Icons.healing),
                             maxLines: 2,
                           ),
