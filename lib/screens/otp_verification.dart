@@ -9,6 +9,7 @@ import 'package:pin_code_fields/pin_code_fields.dart';
 import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 import 'package:pulsepoint_v2/providers/theme_provider.dart';
+import 'package:pulsepoint_v2/providers/auth_service.dart';
 
 class OTPVerificationPage extends StatefulWidget {
   final String verificationId;
@@ -26,7 +27,7 @@ class OTPVerificationPage extends StatefulWidget {
 class _OTPVerificationPageState extends State<OTPVerificationPage>
     with SingleTickerProviderStateMixin {
   final TextEditingController otpController = TextEditingController();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  late final AuthService _authService;
   bool isResending = false;
   bool isVerifying = false;
   bool isSuccess = false;
@@ -40,6 +41,7 @@ class _OTPVerificationPageState extends State<OTPVerificationPage>
   @override
   void initState() {
     super.initState();
+    _authService = Provider.of<AuthService>(context, listen: false);
     _startCountdown();
     _animationController = AnimationController(
       duration: const Duration(seconds: 2),
@@ -367,17 +369,14 @@ class _OTPVerificationPageState extends State<OTPVerificationPage>
                     });
 
                     try {
-                      PhoneAuthCredential credential =
-                          PhoneAuthProvider.credential(
-                        verificationId: widget.verificationId,
-                        smsCode: otpController.text,
+                      // Use the AuthService to verify OTP
+                      final userCredential =
+                          await _authService.verifyOTPAndSignIn(
+                        widget.verificationId,
+                        otpController.text,
                       );
 
-                      UserCredential userCredential =
-                          await _auth.signInWithCredential(credential);
-                      User? user = userCredential.user;
-
-                      if (user != null) {
+                      if (userCredential.user != null) {
                         HapticFeedback.mediumImpact();
                         setState(() {
                           isVerifying = false;
@@ -387,8 +386,10 @@ class _OTPVerificationPageState extends State<OTPVerificationPage>
                         // Wait for animation to complete
                         await Future.delayed(Duration(seconds: 2));
 
-                        // Check if user exists in Firestore
-                        bool userExists = await _checkIfUserExists(user.uid);
+                        // Check if user exists in Firestore using AuthService
+                        bool userExists = await _authService
+                            .checkIfUserExists(userCredential.user!.uid);
+
                         if (userExists) {
                           Navigator.pushReplacement(
                             context,
@@ -408,7 +409,11 @@ class _OTPVerificationPageState extends State<OTPVerificationPage>
                       setState(() {
                         isVerifying = false;
                         hasError = true;
-                        errorMessage = 'Invalid OTP. Please try again.';
+                        if (e is FirebaseAuthException) {
+                          errorMessage = 'Error: ${e.message ?? "Invalid OTP"}';
+                        } else {
+                          errorMessage = 'Invalid OTP. Please try again.';
+                        }
                       });
                       print("Error during OTP verification: $e");
                     }
@@ -471,18 +476,18 @@ class _OTPVerificationPageState extends State<OTPVerificationPage>
                   });
 
                   try {
-                    await _auth.verifyPhoneNumber(
+                    // Use the AuthService to resend verification code
+                    await _authService.verifyPhoneNumber(
                       phoneNumber: widget.phoneNumber,
-                      verificationCompleted:
-                          (PhoneAuthCredential credential) {},
-                      verificationFailed: (FirebaseAuthException e) {
+                      onVerificationCompleted: (_) {},
+                      onVerificationFailed: (FirebaseAuthException e) {
                         setState(() {
                           isResending = false;
                           hasError = true;
                           errorMessage = 'Could not resend code: ${e.message}';
                         });
                       },
-                      codeSent: (String verificationId, int? resendToken) {
+                      onCodeSent: (String verificationId) {
                         setState(() {
                           isResending = false;
                         });
@@ -494,7 +499,6 @@ class _OTPVerificationPageState extends State<OTPVerificationPage>
                         );
                         _restartCountdown();
                       },
-                      codeAutoRetrievalTimeout: (String verificationId) {},
                     );
                   } catch (e) {
                     setState(() {
@@ -536,16 +540,8 @@ class _OTPVerificationPageState extends State<OTPVerificationPage>
     );
   }
 
+  // Replace with AuthService checkIfUserExists method
   Future<bool> _checkIfUserExists(String userId) async {
-    try {
-      var userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .get();
-      return userDoc.exists;
-    } catch (e) {
-      print("Error checking user existence: $e");
-      return false;
-    }
+    return await _authService.checkIfUserExists(userId);
   }
 }

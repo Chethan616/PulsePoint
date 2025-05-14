@@ -2,8 +2,6 @@
 
 PulsePoint is an open-source mobile application built with Flutter that connects blood donors with those in need of blood donations. The app aims to streamline the blood donation process by creating a direct communication channel between donors and recipients.
 
-![PulsePoint Logo](ScreenShots/l1.jpg)
-
 ## Features
 
 - **User Authentication:** Secure phone authentication system
@@ -84,6 +82,43 @@ PulsePoint is an open-source mobile application built with Flutter that connects
    ```
    flutter run
    ```
+
+## Firebase Phone Authentication Setup
+
+To implement Firebase Phone Authentication with SHA certificates:
+
+1. Generate SHA-1 and SHA-256 keys
+   ```
+   For Debug:
+   keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android
+   
+   For Release:
+   keytool -list -v -keystore your_keystore_path -alias your_alias
+   ```
+
+2. Add SHA keys to Firebase:
+   - Go to Firebase Console → Project Settings → Your Android App
+   - Scroll down to "SHA certificate fingerprints"
+   - Click "Add fingerprint" and add your SHA-1 and SHA-256 keys
+
+3. Enable Phone Authentication in Firebase:
+   - Go to Firebase Console → Authentication → Sign-in method
+   - Enable "Phone" as a sign-in provider
+
+4. Configure your app:
+   - Make sure to add your app's domain to the authorized domains
+   - Set up a proper verification method (SMS or reCAPTCHA)
+   - Test authentication with test phone numbers in Firebase Console
+
+5. For Android:
+   - Make sure your `build.gradle` files are properly configured
+   - Add the necessary permissions in `AndroidManifest.xml`
+
+6. For iOS:
+   - Configure your `Info.plist` file
+   - Set up URL schemes and bundle identifiers
+
+For detailed implementation instructions, refer to the [Firebase Phone Authentication documentation](https://firebase.google.com/docs/auth/flutter/phone-auth).
 
 ## Contributing
 

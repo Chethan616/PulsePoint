@@ -10,6 +10,7 @@ import 'package:pulsepoint_v2/screens/signup_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:pulsepoint_v2/providers/theme_provider.dart';
 import 'package:lottie/lottie.dart';
+import 'package:pulsepoint_v2/providers/auth_service.dart';
 
 class LoginPage extends StatefulWidget {
   @override
@@ -19,7 +20,7 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage>
     with SingleTickerProviderStateMixin {
   final TextEditingController phoneController = TextEditingController();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  late final AuthService _authService;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   String completePhoneNumber = '+91';
   bool _isLoading = false;
@@ -30,6 +31,7 @@ class _LoginPageState extends State<LoginPage>
   @override
   void initState() {
     super.initState();
+    _authService = Provider.of<AuthService>(context, listen: false);
     _animationController = AnimationController(
       vsync: this,
       duration: Duration(milliseconds: 1200),
@@ -57,12 +59,10 @@ class _LoginPageState extends State<LoginPage>
     super.dispose();
   }
 
-  Future<void> _checkUserData(User? user, BuildContext context) async {
+  void _checkUserData(User? user, BuildContext context) async {
     if (user != null) {
-      DocumentSnapshot userDoc =
-          await _firestore.collection('users').doc(user.uid).get();
-
-      if (userDoc.exists) {
+      bool userExists = await _authService.checkIfUserExists(user.uid);
+      if (userExists) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => HomeScreen()),
@@ -342,17 +342,23 @@ class _LoginPageState extends State<LoginPage>
                       });
 
                       try {
-                        await _auth.verifyPhoneNumber(
+                        await _authService.verifyPhoneNumber(
                           phoneNumber: completePhoneNumber,
-                          verificationCompleted:
+                          onVerificationCompleted:
                               (PhoneAuthCredential credential) async {
-                            await _auth
-                                .signInWithCredential(credential)
-                                .then((userCredential) {
+                            // Auto-verification completed (rare on most devices)
+                            try {
+                              final userCredential = await FirebaseAuth.instance
+                                  .signInWithCredential(credential);
                               _checkUserData(userCredential.user, context);
-                            });
+                            } catch (e) {
+                              print("Error in auto verification: $e");
+                              setState(() {
+                                _isLoading = false;
+                              });
+                            }
                           },
-                          verificationFailed: (FirebaseAuthException e) {
+                          onVerificationFailed: (FirebaseAuthException e) {
                             print("Verification Failed: ${e.message}");
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
@@ -371,7 +377,7 @@ class _LoginPageState extends State<LoginPage>
                               _isLoading = false;
                             });
                           },
-                          codeSent: (String verificationId, int? resendToken) {
+                          onCodeSent: (String verificationId) {
                             setState(() {
                               _isLoading = false;
                             });
@@ -385,12 +391,6 @@ class _LoginPageState extends State<LoginPage>
                               ),
                             );
                           },
-                          codeAutoRetrievalTimeout: (String verificationId) {
-                            setState(() {
-                              _isLoading = false;
-                            });
-                          },
-                          timeout: Duration(seconds: 60),
                         );
                       } catch (e) {
                         setState(() {
