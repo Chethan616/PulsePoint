@@ -10,6 +10,9 @@ import 'package:lottie/lottie.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:pulsepoint_v2/widgets/star_rating.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -217,11 +220,8 @@ class _ProfileScreenState extends State<ProfileScreen>
             child: InkWell(
               onTap: () {
                 HapticFeedback.lightImpact();
-                // Show edit options
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text('Profile picture update coming soon!')),
-                );
+                // Show profile picture update options
+                _showProfilePictureOptions();
               },
               child: const Icon(
                 Icons.camera_alt,
@@ -233,6 +233,244 @@ class _ProfileScreenState extends State<ProfileScreen>
         ),
       ],
     );
+  }
+
+  void _showProfilePictureOptions() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? Color(0xFF1F1F1F) : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(25.0)),
+      ),
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  'Update Profile Photo',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 20),
+                ListTile(
+                  leading: Icon(
+                    Icons.photo_camera,
+                    color: isDark ? colorScheme.primary : Color(0xFFFF5F6D),
+                  ),
+                  title: Text('Take a photo'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickImage(ImageSource.camera);
+                  },
+                ),
+                ListTile(
+                  leading: Icon(
+                    Icons.photo_library,
+                    color: isDark ? colorScheme.primary : Color(0xFFFF5F6D),
+                  ),
+                  title: Text('Choose from gallery'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickImage(ImageSource.gallery);
+                  },
+                ),
+                if (userData?['profileImageUrl'] != null) ...[
+                  Divider(),
+                  ListTile(
+                    leading: Icon(Icons.delete, color: Colors.red),
+                    title: Text('Remove current photo'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _removeProfilePhoto();
+                    },
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(
+        source: source,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+
+      if (pickedFile != null) {
+        _uploadImage(File(pickedFile.path));
+      }
+    } catch (e) {
+      print('Error picking image: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error picking image: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _uploadImage(File imageFile) async {
+    if (!mounted) return;
+
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return Center(
+            child: CircularProgressIndicator(),
+          );
+        },
+      );
+
+      final User? user = _auth.currentUser;
+      if (user == null) {
+        Navigator.pop(context); // Dismiss loading dialog
+        return;
+      }
+
+      // Create storage reference and upload file
+      final storageRef = FirebaseStorage.instance
+          .ref()
+          .child('profile_images')
+          .child('${user.uid}.jpg');
+
+      // Upload the file
+      await storageRef.putFile(imageFile);
+
+      // Get download URL
+      final downloadUrl = await storageRef.getDownloadURL();
+
+      // Update Firestore with new image URL
+      await _firestore.collection('users').doc(user.uid).update({
+        'profileImageUrl': downloadUrl,
+      });
+
+      // Update cached user data
+      _cachedUserData?['profileImageUrl'] = downloadUrl;
+
+      // Update the UI
+      setState(() {
+        if (userData != null) {
+          userData!['profileImageUrl'] = downloadUrl;
+        }
+      });
+
+      // Close loading dialog
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Profile photo updated successfully')),
+        );
+      }
+    } catch (e) {
+      // Close loading dialog if open
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+
+      print('Error uploading image: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error uploading image: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _removeProfilePhoto() async {
+    if (!mounted) return;
+
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return Center(child: CircularProgressIndicator());
+        },
+      );
+
+      final User? user = _auth.currentUser;
+      if (user == null) {
+        Navigator.pop(context); // Dismiss loading dialog
+        return;
+      }
+
+      // Delete file from storage if it exists
+      try {
+        final storageRef = FirebaseStorage.instance
+            .ref()
+            .child('profile_images')
+            .child('${user.uid}.jpg');
+        await storageRef.delete();
+      } catch (e) {
+        // Ignore if file doesn't exist
+        print('Storage delete error (might be ok): $e');
+      }
+
+      // Remove URL from Firestore
+      await _firestore.collection('users').doc(user.uid).update({
+        'profileImageUrl': FieldValue.delete(),
+      });
+
+      // Update cached user data
+      if (_cachedUserData != null &&
+          _cachedUserData!.containsKey('profileImageUrl')) {
+        _cachedUserData!.remove('profileImageUrl');
+      }
+
+      // Update the UI
+      setState(() {
+        if (userData != null && userData!.containsKey('profileImageUrl')) {
+          userData!.remove('profileImageUrl');
+        }
+      });
+
+      // Close loading dialog
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Profile photo removed successfully')),
+        );
+      }
+    } catch (e) {
+      // Close loading dialog if open
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+
+      print('Error removing profile photo: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error removing profile photo: $e')),
+        );
+      }
+    }
   }
 
   Widget _buildUserRating() {
