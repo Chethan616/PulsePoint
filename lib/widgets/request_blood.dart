@@ -573,53 +573,158 @@ class _ThreadDetailPageState extends State<ThreadDetailPage> {
   Future<void> _submitReply({bool isOffer = false}) async {
     if (_replyController.text.isEmpty && !isOffer) return;
 
-    await _firestore
-        .collection('blood_requests')
-        .doc(widget.threadId)
-        .collection('replies')
-        .add({
-      'content': isOffer ? 'I can help!' : _replyController.text,
-      'authorId': _currentUser?.uid,
-      'authorName': await _getUserName(),
-      'profileImageUrl':
-          await _getUserProfileImageUrl(), // Add profile image URL
-      'timestamp': DateTime.now(),
-      'isOffer': isOffer, // Add the 'isOffer' field
-      'type': 'text', // Add type field to distinguish between text and location
-    });
+    try {
+      final String authorName = await _getUserName();
+      final String authorId = _currentUser?.uid ?? '';
 
-    // Update reply count
-    _firestore.collection('blood_requests').doc(widget.threadId).update({
-      'replyCount': FieldValue.increment(1),
-    });
+      print(
+          'Submitting reply - authorId: $authorId, authorName: $authorName, isOffer: $isOffer');
 
-    _replyController.clear();
+      // Get the thread details to find the recipient (thread author)
+      DocumentSnapshot threadDoc = await _firestore
+          .collection('blood_requests')
+          .doc(widget.threadId)
+          .get();
+
+      String recipientUserId = threadDoc['authorId'];
+      String threadTitle = threadDoc['title'];
+
+      print(
+          'Thread details - recipientUserId: $recipientUserId, threadTitle: $threadTitle');
+
+      // Add the reply to Firestore
+      await _firestore
+          .collection('blood_requests')
+          .doc(widget.threadId)
+          .collection('replies')
+          .add({
+        'content': isOffer ? 'I can help!' : _replyController.text,
+        'authorId': authorId,
+        'authorName': authorName,
+        'profileImageUrl':
+            await _getUserProfileImageUrl(), // Add profile image URL
+        'timestamp': DateTime.now(),
+        'isOffer': isOffer, // Add the 'isOffer' field
+        'type':
+            'text', // Add type field to distinguish between text and location
+      });
+
+      // Update reply count
+      _firestore.collection('blood_requests').doc(widget.threadId).update({
+        'replyCount': FieldValue.increment(1),
+      });
+
+      // Send notification to the thread author
+      if (authorId != recipientUserId) {
+        print('Sending notification to: $recipientUserId');
+        String notificationTitle = isOffer
+            ? 'Someone offered to help!'
+            : 'New reply to your blood request';
+        String notificationBody = isOffer
+            ? '$authorName offered to help with your request for $threadTitle'
+            : '$authorName replied: ${_replyController.text}';
+
+        print('Notification title: $notificationTitle');
+        print('Notification body: $notificationBody');
+
+        await NotificationService().sendBloodRequestThreadNotification(
+          requestId: widget.threadId,
+          authorId: authorId,
+          authorName: authorName,
+          recipientUserId: recipientUserId,
+          title: notificationTitle,
+          body: notificationBody,
+          type: isOffer ? 'offer' : 'reply',
+        );
+
+        print('Notification sent successfully');
+      } else {
+        print('Skipping notification as author and recipient are the same');
+      }
+
+      _replyController.clear();
+    } catch (e, stackTrace) {
+      print('Error in _submitReply: $e');
+      print('Stack trace: $stackTrace');
+    }
   }
 
   Future<void> _shareLocation() async {
-    Map<String, dynamic>? locationData =
-        await LocationUtils.shareLocation(context);
-    if (locationData == null) return;
+    try {
+      Map<String, dynamic>? locationData =
+          await LocationUtils.shareLocation(context);
+      if (locationData == null) {
+        print('No location data available');
+        return;
+      }
 
-    await _firestore
-        .collection('blood_requests')
-        .doc(widget.threadId)
-        .collection('replies')
-        .add({
-      'latitude': locationData['latitude'],
-      'longitude': locationData['longitude'],
-      'authorId': _currentUser?.uid,
-      'authorName': await _getUserName(),
-      'profileImageUrl': await _getUserProfileImageUrl(),
-      'timestamp': DateTime.now(),
-      'isOffer': false,
-      'type': 'location',
-    });
+      final String authorName = await _getUserName();
+      final String authorId = _currentUser?.uid ?? '';
 
-    // Update reply count
-    _firestore.collection('blood_requests').doc(widget.threadId).update({
-      'replyCount': FieldValue.increment(1),
-    });
+      print('Sharing location - authorId: $authorId, authorName: $authorName');
+      print('Location data: $locationData');
+
+      // Get the thread details to find the recipient (thread author)
+      DocumentSnapshot threadDoc = await _firestore
+          .collection('blood_requests')
+          .doc(widget.threadId)
+          .get();
+
+      String recipientUserId = threadDoc['authorId'];
+      String threadTitle = threadDoc['title'];
+
+      print(
+          'Thread details - recipientUserId: $recipientUserId, threadTitle: $threadTitle');
+
+      await _firestore
+          .collection('blood_requests')
+          .doc(widget.threadId)
+          .collection('replies')
+          .add({
+        'latitude': locationData['latitude'],
+        'longitude': locationData['longitude'],
+        'authorId': authorId,
+        'authorName': authorName,
+        'profileImageUrl': await _getUserProfileImageUrl(),
+        'timestamp': DateTime.now(),
+        'isOffer': false,
+        'type': 'location',
+      });
+
+      // Update reply count
+      _firestore.collection('blood_requests').doc(widget.threadId).update({
+        'replyCount': FieldValue.increment(1),
+      });
+
+      // Send notification to the thread author
+      if (authorId != recipientUserId) {
+        print('Sending location notification to: $recipientUserId');
+        String notificationTitle = 'Location shared on your blood request';
+        String notificationBody =
+            '$authorName shared their location for your request: $threadTitle';
+
+        print('Notification title: $notificationTitle');
+        print('Notification body: $notificationBody');
+
+        await NotificationService().sendBloodRequestThreadNotification(
+          requestId: widget.threadId,
+          authorId: authorId,
+          authorName: authorName,
+          recipientUserId: recipientUserId,
+          title: notificationTitle,
+          body: notificationBody,
+          type: 'location',
+        );
+
+        print('Location notification sent successfully');
+      } else {
+        print(
+            'Skipping location notification as author and recipient are the same');
+      }
+    } catch (e, stackTrace) {
+      print('Error in _shareLocation: $e');
+      print('Stack trace: $stackTrace');
+    }
   }
 
   Future<void> _toggleThreadStatus(DocumentSnapshot thread) async {

@@ -12,6 +12,7 @@ import 'package:pulsepoint_v2/providers/theme_provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
+import 'package:pulsepoint_v2/screens/widgets_settings_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   @override
@@ -832,6 +833,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildDarkModeSwitch(),
           _buildLanguageSelector(),
           _buildNotificationSwitch(),
+          _buildSupportItem(
+            'Home Screen Widgets',
+            Icons.widgets,
+            isDark ? Colors.deepPurple : Colors.purple,
+            () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => WidgetsSettingsScreen()),
+            ),
+            subtitle: 'Configure your home screen widgets',
+          ),
 
           Divider(height: 1, thickness: 1, indent: 16, endIndent: 16),
 

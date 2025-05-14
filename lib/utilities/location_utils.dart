@@ -179,6 +179,58 @@ class LocationUtils {
     }
   }
 
+  // Save user location without requiring BuildContext
+  static Future<bool> updateUserLocationSilently() async {
+    try {
+      // Check for user authentication
+      User? currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) return false;
+
+      // Check location services and permissions
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        print('Location services are disabled');
+        return false;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          print('Location permissions are denied');
+          return false;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        print('Location permissions are permanently denied');
+        return false;
+      }
+
+      // Get the current position
+      Position position = await Geolocator.getCurrentPosition();
+
+      // Update the user's location in Firestore
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser.uid)
+          .update({
+        'location': {
+          'latitude': position.latitude,
+          'longitude': position.longitude,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }
+      });
+
+      print(
+          'User location updated successfully: ${position.latitude}, ${position.longitude}');
+      return true;
+    } catch (e) {
+      print('Error updating user location: $e');
+      return false;
+    }
+  }
+
   // Format location into a readable string (e.g., "23.1234°N, 45.6789°E")
   static String formatLocation(double latitude, double longitude) {
     final String latDirection = latitude >= 0 ? 'N' : 'S';

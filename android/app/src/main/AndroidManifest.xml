@@ -46,6 +46,14 @@
                 <action android:name="FLUTTER_NOTIFICATION_CLICK" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
+            
+            <!-- For handling widget deep links -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="pulsepoint" />
+            </intent-filter>
         </activity>
 
         <!-- Firebase Messaging Service -->
@@ -71,6 +79,31 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="chat_channel" />
+            
+        <!-- Health Tip Widget Provider -->
+        <receiver
+            android:name=".widgets.HealthTipWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.example.pulsepoint_v2.widgets.ACTION_REFRESH_TIP" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/health_tip_widget_info" />
+        </receiver>
+        
+        <!-- Emergency Options Widget Provider -->
+        <receiver
+            android:name=".widgets.EmergencyOptionsWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/emergency_options_widget_info" />
+        </receiver>
 
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

@@ -13,6 +13,7 @@ import 'package:pulsepoint_v2/providers/activity_service.dart';
 import 'package:provider/provider.dart';
 import 'package:pulsepoint_v2/widgets/donate_blood.dart';
 import 'package:pulsepoint_v2/widgets/request_blood.dart';
+import 'package:pulsepoint_v2/utilities/location_utils.dart';
 import 'dart:math' as math;
 
 class HomeScreen extends StatefulWidget {
@@ -52,6 +53,9 @@ class _HomeScreenState extends State<HomeScreen>
     // Select a random tip at initialization
     final random = math.Random();
     _currentTip = _healthTips[random.nextInt(_healthTips.length)];
+
+    // Update user location
+    _updateUserLocation();
   }
 
   @override
@@ -757,5 +761,14 @@ class _HomeScreenState extends State<HomeScreen>
       trailing: Icon(Icons.arrow_forward_ios, size: 16),
       mouseCursor: SystemMouseCursors.click,
     );
+  }
+
+  // Update user location
+  Future<void> _updateUserLocation() async {
+    LocationUtils.updateUserLocationSilently().then((success) {
+      if (success) {
+        print('User location updated from HomeScreen');
+      }
+    });
   }
 }

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 import 'package:pulsepoint_v2/providers/theme_provider.dart';
+import 'package:pulsepoint_v2/providers/auth_service.dart';
 import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
 import 'package:flutter/services.dart';
@@ -13,6 +14,7 @@ import 'package:pulsepoint_v2/widgets/star_rating.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:pulsepoint_v2/screens/login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -1077,15 +1079,65 @@ class _ProfileScreenState extends State<ProfileScreen>
                             'Delete',
                             style: TextStyle(color: Colors.red),
                           ),
-                          onPressed: () {
-                            // TODO: Implement account deletion
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                    'Account deletion is not implemented yet.'),
-                              ),
+                          onPressed: () async {
+                            Navigator.pop(context); // Close the dialog
+
+                            // Show loading dialog
+                            showDialog(
+                              context: context,
+                              barrierDismissible: false,
+                              builder: (BuildContext context) {
+                                return Dialog(
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 20),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        CircularProgressIndicator(),
+                                        SizedBox(height: 20),
+                                        Text('Deleting account...')
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
                             );
+
+                            try {
+                              final authService = Provider.of<AuthService>(
+                                  context,
+                                  listen: false);
+                              await authService.deleteUserAccount();
+
+                              // Close loading dialog
+                              if (mounted && Navigator.canPop(context)) {
+                                Navigator.pop(context);
+                              }
+
+                              // Navigate to login screen
+                              if (mounted) {
+                                Navigator.of(context).pushAndRemoveUntil(
+                                  MaterialPageRoute(
+                                      builder: (context) => LoginPage()),
+                                  (Route<dynamic> route) => false,
+                                );
+                              }
+                            } catch (e) {
+                              // Close loading dialog
+                              if (mounted && Navigator.canPop(context)) {
+                                Navigator.pop(context);
+                              }
+
+                              // Show error message
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                      'Error deleting account: ${e.toString()}'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
                           },
                         ),
                       ],

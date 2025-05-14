@@ -28,109 +28,117 @@ class NotificationService {
   static final GlobalKey<NavigatorState> navigatorKey =
       GlobalKey<NavigatorState>();
 
-  // Initialize notification channels and request permissions
-  Future<void> init() async {
-    // Request notification permissions
-    NotificationSettings settings = await _fcm.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-      provisional: false,
-    );
+  // Initialize notification service
+  Future<void> initialize() async {
+    try {
+      // Request notification permissions
+      FirebaseMessaging.onBackgroundMessage(
+          _firebaseMessagingBackgroundHandler);
 
-    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      print('User granted permission');
-    } else {
-      print('User declined or has not accepted permission');
-      return;
-    }
+      // Request permission for iOS devices
+      NotificationSettings settings = await _fcm.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+        provisional: false,
+      );
 
-    // For iOS only
-    await _fcm.setForegroundNotificationPresentationOptions(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+      print('User granted permission: ${settings.authorizationStatus}');
 
-    // Initialize local notifications
-    const AndroidInitializationSettings initializationSettingsAndroid =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
-
-    final DarwinInitializationSettings initializationSettingsIOS =
-        DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
-    );
-
-    final InitializationSettings initializationSettings =
-        InitializationSettings(
-      android: initializationSettingsAndroid,
-      iOS: initializationSettingsIOS,
-    );
-
-    await _flutterLocalNotificationsPlugin.initialize(
-      initializationSettings,
-      onDidReceiveNotificationResponse: _onSelectNotification,
-    );
-
-    // Create notification channels for Android
-    if (Platform.isAndroid) {
-      await createNotificationChannels();
-    }
-
-    // Get FCM token
-    String? token = await _fcm.getToken();
-    if (token != null) {
-      await _saveTokenToFirestore(token);
+      // Get device token for FCM
+      String? token = await _fcm.getToken();
       print('FCM Token: $token');
-    }
 
-    // Listen for token refreshes
-    _fcm.onTokenRefresh.listen(_saveTokenToFirestore);
-
-    // Handle background messages
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-    // Handle foreground messages
-    FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
-
-    // Handle messages when app is opened from terminated state
-    FirebaseMessaging.instance.getInitialMessage().then((message) {
-      if (message != null) {
-        _handleMessageOpenedApp(message);
+      if (token != null) {
+        // Save the token to Firestore
+        await _saveTokenToFirestore(token);
+        print('FCM token saved to Firestore');
+      } else {
+        print('Failed to get FCM token');
       }
-    });
 
-    // Handle message when app is in background but opened
-    FirebaseMessaging.onMessageOpenedApp.listen(_handleMessageOpenedApp);
+      // Configure FCM callbacks
+      FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+      FirebaseMessaging.onMessageOpenedApp.listen(_handleMessageOpenedApp);
+
+      // Configure refresh token logic
+      _fcm.onTokenRefresh.listen((newToken) async {
+        print('FCM token refreshed: $newToken');
+        await _saveTokenToFirestore(newToken);
+      });
+
+      // Create Android notification channels
+      await createNotificationChannels();
+
+      // Configure local notifications
+      const AndroidInitializationSettings initializationSettingsAndroid =
+          AndroidInitializationSettings('@mipmap/ic_launcher');
+
+      final DarwinInitializationSettings initializationSettingsIOS =
+          DarwinInitializationSettings(
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
+      );
+
+      final InitializationSettings initializationSettings =
+          InitializationSettings(
+        android: initializationSettingsAndroid,
+        iOS: initializationSettingsIOS,
+      );
+
+      await _flutterLocalNotificationsPlugin.initialize(
+        initializationSettings,
+        onDidReceiveNotificationResponse: _onSelectNotification,
+      );
+
+      print('Notification service initialized successfully');
+    } catch (e, stackTrace) {
+      print('Error initializing notification service: $e');
+      print('Stack trace: $stackTrace');
+    }
   }
 
   // Create notification channels for Android
   Future<void> createNotificationChannels() async {
-    const chatChannel = AndroidNotificationChannel(
-      'chat_channel',
-      'Chat Notifications',
-      description: 'Notifications for new chat messages',
-      importance: Importance.high,
-    );
+    print('Creating notification channels for Android');
 
-    const bloodRequestChannel = AndroidNotificationChannel(
-      'blood_request_channel',
-      'Blood Request Notifications',
-      description: 'Notifications for blood donation requests',
-      importance: Importance.high,
-    );
+    try {
+      const chatChannel = AndroidNotificationChannel(
+        'chat_channel',
+        'Chat Notifications',
+        description: 'Notifications for new chat messages',
+        importance: Importance.high,
+        enableVibration: true,
+        enableLights: true,
+        playSound: true,
+      );
 
-    await _flutterLocalNotificationsPlugin
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(chatChannel);
+      const bloodRequestChannel = AndroidNotificationChannel(
+        'blood_request_channel',
+        'Blood Request Notifications',
+        description: 'Notifications for blood donation requests',
+        importance: Importance.high,
+        enableVibration: true,
+        enableLights: true,
+        playSound: true,
+      );
 
-    await _flutterLocalNotificationsPlugin
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(bloodRequestChannel);
+      final androidPlugin = _flutterLocalNotificationsPlugin
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+
+      if (androidPlugin != null) {
+        await androidPlugin.createNotificationChannel(chatChannel);
+        await androidPlugin.createNotificationChannel(bloodRequestChannel);
+        print('Notification channels created successfully');
+      } else {
+        print('Android plugin is null, cannot create channels');
+      }
+    } catch (e, stackTrace) {
+      print('Error creating notification channels: $e');
+      print('Stack trace: $stackTrace');
+    }
   }
 
   // Save FCM token to Firestore
@@ -323,6 +331,89 @@ class NotificationService {
     }
   }
 
+  // Send notification for blood request thread replies or offers
+  Future<void> sendBloodRequestThreadNotification({
+    required String requestId,
+    required String authorId,
+    required String authorName,
+    required String recipientUserId,
+    required String title,
+    required String body,
+    required String type, // 'reply', 'offer', 'location'
+  }) async {
+    try {
+      print('Preparing to send thread notification:');
+      print('- Request ID: $requestId');
+      print('- Author ID: $authorId');
+      print('- Author Name: $authorName');
+      print('- Recipient User ID: $recipientUserId');
+      print('- Title: $title');
+      print('- Body: $body');
+      print('- Type: $type');
+
+      // Skip if sending to self
+      if (recipientUserId == authorId) {
+        print('Skipping notification as recipient is the author');
+        return;
+      }
+
+      // Get recipient's FCM token
+      DocumentSnapshot userDoc =
+          await _firestore.collection('users').doc(recipientUserId).get();
+
+      if (!userDoc.exists) {
+        print('User document does not exist for ID: $recipientUserId');
+        return;
+      }
+
+      Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
+      String? fcmToken = userData['fcmToken'];
+
+      if (fcmToken == null || fcmToken.isEmpty) {
+        print('No FCM token found for user: $recipientUserId');
+        return;
+      }
+
+      print('Found FCM token: $fcmToken');
+
+      // Get user notification preferences
+      bool enableBloodRequestNotifications = true;
+      if (userData.containsKey('notificationPreferences')) {
+        final prefs = userData['notificationPreferences'];
+        if (prefs is Map &&
+            prefs.containsKey('enableBloodRequestNotifications')) {
+          enableBloodRequestNotifications =
+              prefs['enableBloodRequestNotifications'] ?? true;
+        }
+      }
+
+      if (!enableBloodRequestNotifications) {
+        print('User has disabled blood request notifications');
+        return;
+      }
+
+      print('Sending notification to token: $fcmToken');
+      await _sendPushNotification(
+        token: fcmToken,
+        title: title,
+        body: body,
+        data: {
+          'type': 'blood_request',
+          'requestId': requestId,
+          'replyType': type,
+          'authorId': authorId,
+          'authorName': authorName,
+          'click_action': 'FLUTTER_NOTIFICATION_CLICK',
+        },
+      );
+
+      print('Blood request thread notification sent successfully');
+    } catch (e, stackTrace) {
+      print('Error sending blood request thread notification: $e');
+      print('Stack trace: $stackTrace');
+    }
+  }
+
   // Send chat message notification
   Future<void> sendChatNotification({
     required String recipientUserId,
@@ -366,23 +457,61 @@ class NotificationService {
     required String body,
     required Map<String, String> data,
   }) async {
-    // NOTE: This method uses Firebase Admin SDK approach
-    // In a production app, this should be handled by a secure server
-    // This is a simplified version for demonstration purposes
-
-    // Ideally, you'd use your backend server to send notifications
-    // The below is a placeholder for how it would work with a real server
     try {
-      // Simulate sending push notification
+      // Log the notification being sent (for debugging)
       print('Sending notification to token: $token');
       print('Title: $title');
       print('Body: $body');
       print('Data: $data');
 
-      // In a real implementation, you would make an HTTP request to your server
-      // which would then use Firebase Admin SDK to send the notification
-    } catch (e) {
+      // Create an HTTP request to send to FCM
+      final response = await http.post(
+        Uri.parse('https://fcm.googleapis.com/fcm/send'),
+        headers: <String, String>{
+          'Content-Type': 'application/json',
+          'Authorization':
+              'key=AAAApHKm5vA:APA91bGR8Klf3sQ5SsulKO1BPGjp-xeN5Zh8wdTEfpYIKd_kYf-1H4NcpUzA_f5fNRbvuWsWK1zP6m1KXzQS1qTZVlZ8JcZqZ5TgQ0rlsXgN8u33KfhRW-QDsERdLFzZYszwf1jfQHYM',
+        },
+        body: jsonEncode(<String, dynamic>{
+          'notification': <String, dynamic>{
+            'title': title,
+            'body': body,
+            'sound': 'default',
+            'android_channel_id': 'blood_request_channel',
+            'badge': '1',
+          },
+          'priority': 'high',
+          'data': data,
+          'to': token,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        print('Notification sent successfully');
+        print('Response body: ${response.body}');
+
+        // Parse response to get more details
+        Map<String, dynamic> responseData = jsonDecode(response.body);
+        int success = responseData['success'] ?? 0;
+
+        if (success <= 0) {
+          print('FCM returned success=0: ${response.body}');
+          // Check for error messages
+          if (responseData.containsKey('results')) {
+            final results = responseData['results'];
+            if (results is List && results.isNotEmpty) {
+              print('Error details: ${results[0]}');
+            }
+          }
+        }
+      } else {
+        print(
+            'Failed to send notification. Status code: ${response.statusCode}');
+        print('Response: ${response.body}');
+      }
+    } catch (e, stackTrace) {
       print('Error sending push notification: $e');
+      print('Stack trace: $stackTrace');
     }
   }
 
