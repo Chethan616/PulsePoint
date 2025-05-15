@@ -8,9 +8,9 @@ import android.content.SharedPreferences
 import android.os.Bundle
 import android.util.Log
 import androidx.annotation.NonNull
-import es.antonborri.home_widget.HomeWidgetBackgroundIntent
-import es.antonborri.home_widget.HomeWidgetLaunchIntent
-import es.antonborri.home_widget.HomeWidgetPlugin
+// import es.antonborri.home_widget.HomeWidgetBackgroundIntent
+// import es.antonborri.home_widget.HomeWidgetLaunchIntent
+// import es.antonborri.home_widget.HomeWidgetPlugin
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
@@ -25,14 +25,7 @@ class MainActivity: FlutterActivity() {
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         
-        // Set up the HomeWidgetPlugin
-        HomeWidgetPlugin.setup(
-            context = context,
-            widgetProviders = listOf(
-                HealthTipWidgetProvider::class.java,
-                EmergencyOptionsWidgetProvider::class.java
-            )
-        )
+        // HomeWidgetPlugin setup removed - will be added back when we re-enable home widgets
         
         // Add your old channel setup if needed
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "home_widget")
@@ -45,15 +38,15 @@ class MainActivity: FlutterActivity() {
     private fun handleMethodCall(call: MethodCall, result: MethodChannel.Result) {
         Log.d(TAG, "Method call: " + call.method)
         
-        // Forward to home_widget plugin
+        // Handle methods with SharedPreferences directly instead of HomeWidgetPlugin
         when (call.method) {
             "saveWidgetData" -> {
                 val id = call.argument<String>("id")
                 val data = call.argument<Any>("data")
                 
                 if (id != null && data != null) {
-                    // Save to preferences accessible by home_widget plugin
-                    val prefs = HomeWidgetPlugin.widgetPreferences(context)
+                    // Save to app preferences
+                    val prefs = context.getSharedPreferences("home_widget_preferences", Context.MODE_PRIVATE)
                     val editor = prefs.edit()
                     editor.putString(id, data.toString())
                     editor.apply()
@@ -111,7 +104,7 @@ class MainActivity: FlutterActivity() {
                 val id = call.argument<String>("id")
                 
                 if (id != null) {
-                    val prefs = HomeWidgetPlugin.widgetPreferences(context)
+                    val prefs = context.getSharedPreferences("home_widget_preferences", Context.MODE_PRIVATE)
                     val value = prefs.getString(id, null)
                     result.success(value)
                 } else {

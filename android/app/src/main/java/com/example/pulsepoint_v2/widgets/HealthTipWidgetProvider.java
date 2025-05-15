@@ -12,10 +12,6 @@ import android.widget.RemoteViews;
 
 import com.example.pulsepoint_v2.R;
 
-import es.antonborri.home_widget.HomeWidgetBackgroundIntent;
-import es.antonborri.home_widget.HomeWidgetLaunchIntent;
-import es.antonborri.home_widget.HomeWidgetPlugin;
-
 /**
  * Health Tip widget provider that displays a random health tip and allows refreshing
  */
@@ -54,13 +50,16 @@ public class HealthTipWidgetProvider extends AppWidgetProvider {
         PendingIntent refreshPendingIntent = PendingIntent.getBroadcast(
                 context, 0, refreshIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-        // Create a background intent to trigger refreshing via Flutter
-        PendingIntent backgroundIntent = HomeWidgetBackgroundIntent.getBroadcast(
-                context, Uri.parse("pulsepoint://refreshtip"));
+        // Create a regular intent to refresh the tip (replacing HomeWidgetBackgroundIntent)
+        Intent backgroundRefreshIntent = new Intent(context, HealthTipWidgetProvider.class);
+        backgroundRefreshIntent.setAction(ACTION_REFRESH);
+        PendingIntent backgroundIntent = PendingIntent.getBroadcast(
+                context, 1, backgroundRefreshIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
         // Create an intent to launch the app when widget is tapped
-        PendingIntent launchIntent = HomeWidgetLaunchIntent.getActivity(
-                context, context.getPackageName(), Uri.parse("pulsepoint://open"));
+        Intent launchAppIntent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+        PendingIntent launchIntent = PendingIntent.getActivity(
+                context, 0, launchAppIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
         // Set up the RemoteViews
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.health_tip_widget);
@@ -80,12 +79,12 @@ public class HealthTipWidgetProvider extends AppWidgetProvider {
      * Reads health tip from SharedPreferences
      */
     private String getHealthTipFromPreferences(Context context) {
-        // Try home_widget's preferences first
-        SharedPreferences homeWidgetPrefs = HomeWidgetPlugin.getSharedPreferences(context);
+        // Try custom preferences repository (replacing HomeWidgetPlugin)
+        SharedPreferences homeWidgetPrefs = context.getSharedPreferences("home_widget_preferences", Context.MODE_PRIVATE);
         String tip = homeWidgetPrefs.getString("tip", null);
         
         if (tip != null && !tip.isEmpty()) {
-            Log.d(TAG, "Found tip in HomeWidgetPlugin preferences: " + tip);
+            Log.d(TAG, "Found tip in home_widget_preferences: " + tip);
             return tip;
         }
         

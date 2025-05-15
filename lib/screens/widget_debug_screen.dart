@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pulsepoint_v2/widgets/home_screen_widgets/home_screen_widget_manager.dart';
-import 'package:home_widget/home_widget.dart';
+// import 'package:home_widget/home_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class WidgetDebugScreen extends StatefulWidget {
@@ -59,27 +59,33 @@ class _WidgetDebugScreenState extends State<WidgetDebugScreen> {
 
     try {
       // Initialize app group ID
-      await HomeWidget.setAppGroupId('group.com.example.pulsepoint_v2');
+      // await HomeWidget.setAppGroupId('group.com.example.pulsepoint_v2');
 
       // Manual save of widget data
-      await HomeWidget.saveWidgetData<String>('tip',
+      // await HomeWidget.saveWidgetData<String>('tip',
+      //    'Manually set health tip: Stay hydrated and exercise regularly!');
+      // await HomeWidget.saveWidgetData<String>('emergency_number', '108');
+
+      // await HomeWidget.updateWidget(
+      //   name: 'HealthTipWidgetProvider',
+      //   androidName: 'HealthTipWidgetProvider',
+      //   iOSName: 'HealthTipWidget',
+      // );
+
+      // await HomeWidget.updateWidget(
+      //   name: 'EmergencyOptionsWidgetProvider',
+      //   androidName: 'EmergencyOptionsWidgetProvider',
+      //   iOSName: 'EmergencyOptionsWidget',
+      // );
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('tip',
           'Manually set health tip: Stay hydrated and exercise regularly!');
-      await HomeWidget.saveWidgetData<String>('emergency_number', '108');
-
-      await HomeWidget.updateWidget(
-        name: 'HealthTipWidgetProvider',
-        androidName: 'HealthTipWidgetProvider',
-        iOSName: 'HealthTipWidget',
-      );
-
-      await HomeWidget.updateWidget(
-        name: 'EmergencyOptionsWidgetProvider',
-        androidName: 'EmergencyOptionsWidgetProvider',
-        iOSName: 'EmergencyOptionsWidget',
-      );
+      await prefs.setString('emergency_number', '108');
 
       setState(() {
-        _statusMessage = 'Widgets initialized successfully';
+        _statusMessage =
+            'Data saved to SharedPreferences (widget functionality disabled)';
       });
 
       await _loadPreferences();

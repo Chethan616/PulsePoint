@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:home_widget/home_widget.dart';
+// import 'package:home_widget/home_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:math';
@@ -25,16 +25,17 @@ class HomeScreenWidgetManager {
   static Future<void> initialize() async {
     try {
       // Configure for both platforms
-      await HomeWidget.setAppGroupId('group.com.example.pulsepoint_v2');
+      // await HomeWidget.setAppGroupId('group.com.example.pulsepoint_v2');
 
       // Set up background handlers
-      await HomeWidget.registerBackgroundCallback(backgroundCallback);
+      // await HomeWidget.registerBackgroundCallback(backgroundCallback);
 
       // Initialize widget data
       await refreshHealthTipWidget();
       await updateEmergencyNumber('108'); // Default number
 
       // Update the widgets
+      /* 
       await HomeWidget.updateWidget(
         name: 'HealthTipWidgetProvider',
         androidName: 'HealthTipWidgetProvider',
@@ -46,6 +47,7 @@ class HomeScreenWidgetManager {
         androidName: 'EmergencyOptionsWidgetProvider',
         iOSName: 'EmergencyOptionsWidget',
       );
+      */
 
       print('Home screen widgets initialized successfully');
     } catch (e) {
@@ -86,7 +88,7 @@ class HomeScreenWidgetManager {
       await prefs.setString(_healthTipKey, newTip);
 
       // Save for widget access
-      await HomeWidget.saveWidgetData<String>('tip', newTip);
+      // await HomeWidget.saveWidgetData<String>('tip', newTip);
 
       // For backward compatibility, save with other keys too
       await prefs.setString('flutter.current_health_tip', newTip);
@@ -94,11 +96,13 @@ class HomeScreenWidgetManager {
       await prefs.setString('flutter.tip', newTip);
 
       // Update the widget
+      /*
       await HomeWidget.updateWidget(
         name: 'HealthTipWidgetProvider',
         androidName: 'HealthTipWidgetProvider',
         iOSName: 'HealthTipWidget',
       );
+      */
 
       print('Health tip widget refreshed with: $newTip');
     } catch (e) {
@@ -132,17 +136,19 @@ class HomeScreenWidgetManager {
       await prefs.setString(_emergencyNumberKey, number);
 
       // Save for widget access
-      await HomeWidget.saveWidgetData<String>('emergency_number', number);
+      // await HomeWidget.saveWidgetData<String>('emergency_number', number);
 
       // For backward compatibility
       await prefs.setString('flutter.emergency_number', number);
 
       // Update widget
+      /*
       await HomeWidget.updateWidget(
         name: 'EmergencyOptionsWidgetProvider',
         androidName: 'EmergencyOptionsWidgetProvider',
         iOSName: 'EmergencyOptionsWidget',
       );
+      */
 
       print('Emergency number updated to: $number');
     } catch (e) {

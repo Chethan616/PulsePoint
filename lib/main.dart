@@ -16,7 +16,8 @@ import 'firebase_options.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:math' as math;
 import 'package:pulsepoint_v2/widgets/home_widget_custom/home_widget.dart';
-import 'package:home_widget/home_widget.dart';
+// import 'package:home_widget/home_widget.dart';
+import 'package:pulsepoint_v2/screens/widget_debug_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,16 +35,16 @@ void main() async {
     print('Initializing home screen widgets...');
     try {
       // Initialize HomeWidget package
-      await HomeWidget.setAppGroupId('group.com.example.pulsepoint_v2');
-      await HomeWidget.registerBackgroundCallback(
-          HomeScreenWidgetManager.backgroundCallback);
+      // await HomeWidget.setAppGroupId('group.com.example.pulsepoint_v2');
+      // await HomeWidget.registerBackgroundCallback(
+      //     HomeScreenWidgetManager.backgroundCallback);
 
       // Initialize widget data
-      await HomeScreenWidgetManager.initialize();
+      // await HomeScreenWidgetManager.initialize();
 
       // Additional initialization for redundancy
-      await Future.delayed(Duration(milliseconds: 500));
-      await HomeScreenWidgetManager.forceRefreshAllWidgets();
+      // await Future.delayed(Duration(milliseconds: 500));
+      // await HomeScreenWidgetManager.forceRefreshAllWidgets();
 
       print('Home screen widgets initialized successfully');
     } catch (e) {
@@ -69,25 +70,25 @@ void main() async {
         await prefs.setString('flutter.current_health_tip', healthTip);
 
         // Save with home_widget package
-        await HomeWidget.saveWidgetData<String>('tip', healthTip);
+        // await HomeWidget.saveWidgetData<String>('tip', healthTip);
 
         // Save emergency number
         await prefs.setString('emergency_number', '108');
         await prefs.setString('flutter.emergency_number', '108');
-        await HomeWidget.saveWidgetData<String>('emergency_number', '108');
+        // await HomeWidget.saveWidgetData<String>('emergency_number', '108');
 
         // Try to update the widgets
-        await HomeWidget.updateWidget(
-          name: 'HealthTipWidgetProvider',
-          androidName: 'HealthTipWidgetProvider',
-          iOSName: 'HealthTipWidget',
-        );
+        // await HomeWidget.updateWidget(
+        //   name: 'HealthTipWidgetProvider',
+        //   androidName: 'HealthTipWidgetProvider',
+        //   iOSName: 'HealthTipWidget',
+        // );
 
-        await HomeWidget.updateWidget(
-          name: 'EmergencyOptionsWidgetProvider',
-          androidName: 'EmergencyOptionsWidgetProvider',
-          iOSName: 'EmergencyOptionsWidget',
-        );
+        // await HomeWidget.updateWidget(
+        //   name: 'EmergencyOptionsWidgetProvider',
+        //   androidName: 'EmergencyOptionsWidgetProvider',
+        //   iOSName: 'EmergencyOptionsWidget',
+        // );
 
         print('Fallback widget initialization completed');
       } catch (fallbackError) {
@@ -100,10 +101,10 @@ void main() async {
   }
 
   // Initialize widget callback listener
-  HomeWidget.widgetClicked.listen((uri) {
-    print('Widget clicked: $uri');
-    // Handle widget click events if needed
-  });
+  // HomeWidget.widgetClicked.listen((uri) {
+  //   print('Widget clicked: $uri');
+  //   // Handle widget click events if needed
+  // });
 
   runApp(
     MultiProvider(
