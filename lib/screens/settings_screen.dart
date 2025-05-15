@@ -13,6 +13,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
 import 'package:pulsepoint_v2/screens/widgets_settings_screen.dart';
+import 'package:pulsepoint_v2/screens/widget_debug_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   @override
@@ -833,15 +834,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildDarkModeSwitch(),
           _buildLanguageSelector(),
           _buildNotificationSwitch(),
-          _buildSupportItem(
-            'Home Screen Widgets',
-            Icons.widgets,
-            isDark ? Colors.deepPurple : Colors.purple,
-            () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => WidgetsSettingsScreen()),
-            ),
-            subtitle: 'Configure your home screen widgets',
+          _buildSection(
+            title: 'Widgets',
+            children: [
+              _buildSettingTile(
+                title: 'Home Screen Widgets',
+                subtitle: 'Configure and preview home screen widgets',
+                icon: Icons.widgets,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => WidgetsSettingsScreen(),
+                    ),
+                  );
+                },
+              ),
+              _buildSettingTile(
+                title: 'Widget Troubleshooter',
+                subtitle: 'Debug and fix issues with home screen widgets',
+                icon: Icons.bug_report,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => WidgetDebugScreen(),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
 
           Divider(height: 1, thickness: 1, indent: 16, endIndent: 16),
@@ -1154,6 +1176,61 @@ class _SettingsScreenState extends State<SettingsScreen> {
           }
         },
       ),
+    );
+  }
+
+  Widget _buildSection({
+    required String title,
+    required List<Widget> children,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Text(
+            title,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+        ),
+        ...children,
+        Divider(),
+      ],
+    );
+  }
+
+  Widget _buildSettingTile({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return ListTile(
+      leading: Container(
+        padding: EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: isDark
+              ? Colors.deepPurple.withOpacity(0.1)
+              : Colors.purple.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(icon, color: isDark ? Colors.deepPurple : Colors.purple),
+      ),
+      title: Text(title),
+      subtitle: Text(subtitle),
+      trailing: Icon(
+        Icons.chevron_right,
+        color: isDark ? Colors.white54 : Colors.black45,
+      ),
+      onTap: onTap,
     );
   }
 }

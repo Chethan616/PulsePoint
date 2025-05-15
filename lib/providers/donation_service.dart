@@ -138,6 +138,21 @@ class DonationService {
             'donationId': donationId,
             'bloodType': donation.bloodType,
             'recipientName': donation.recipientName,
+            'recipientId': donation.recipientId,
+          },
+        );
+
+        // Record activity for the recipient too, even if they're not the one marking as completed
+        await _activityService.recordActivityForUser(
+          userId: donation.recipientId,
+          type: ActivityType.bloodRequest,
+          title: "Donation Received",
+          description: "Received blood donation from ${donation.donorName}",
+          additionalData: {
+            'donationId': donationId,
+            'bloodType': donation.bloodType,
+            'donorName': donation.donorName,
+            'donorId': donation.donorId,
           },
         );
       } else {
@@ -149,6 +164,21 @@ class DonationService {
             'donationId': donationId,
             'bloodType': donation.bloodType,
             'donorName': donation.donorName,
+            'donorId': donation.donorId,
+          },
+        );
+
+        // Record activity for the donor too, even if they're not the one marking as completed
+        await _activityService.recordActivityForUser(
+          userId: donation.donorId,
+          type: ActivityType.bloodDonation,
+          title: "Donation Completed",
+          description: "Completed blood donation to ${donation.recipientName}",
+          additionalData: {
+            'donationId': donationId,
+            'bloodType': donation.bloodType,
+            'recipientName': donation.recipientName,
+            'recipientId': donation.recipientId,
           },
         );
       }
@@ -392,5 +422,55 @@ class DonationService {
       results['error'] = e.toString();
       return results;
     }
+  }
+
+  // Get count of completed donations for a user
+  // This can be used to calculate achievements and statistics
+  Future<int> getCompletedDonationCount() async {
+    if (_userId.isEmpty) return 0;
+
+    try {
+      // Query completed donations where user is donor
+      final completedQuery = await _firestore
+          .collection('blood_donations')
+          .where('donorId', isEqualTo: _userId)
+          .where('status',
+              isEqualTo: _donationStatusToString(DonationStatus.completed))
+          .get();
+
+      return completedQuery.docs.length;
+    } catch (e) {
+      print('Error getting completed donation count: $e');
+      return 0;
+    }
+  }
+
+  // Get count of donations received by a user
+  Future<int> getReceivedDonationCount() async {
+    if (_userId.isEmpty) return 0;
+
+    try {
+      // Query completed donations where user is recipient
+      final receivedQuery = await _firestore
+          .collection('blood_donations')
+          .where('recipientId', isEqualTo: _userId)
+          .where('status',
+              isEqualTo: _donationStatusToString(DonationStatus.completed))
+          .get();
+
+      return receivedQuery.docs.length;
+    } catch (e) {
+      print('Error getting received donation count: $e');
+      return 0;
+    }
+  }
+
+  // Get combined impact (donations made + received)
+  Future<int> getTotalImpact() async {
+    final donated = await getCompletedDonationCount();
+    final received = await getReceivedDonationCount();
+
+    // Each donation impacts ~3 lives (estimate)
+    return (donated + received) * 3;
   }
 }

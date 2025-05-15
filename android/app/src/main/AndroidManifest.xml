@@ -14,7 +14,8 @@
     <application
         android:label="pulsepoint_v2"
         android:name="${applicationName}"
-        android:icon="@mipmap/launcher_icon">
+        android:icon="@mipmap/launcher_icon"
+        android:enableOnBackInvokedCallback="true">
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="AIzaSyDhul8Xd7erUyhJsAaFXDOqbjaF-3hYyI4"/>
@@ -53,6 +54,15 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="pulsepoint" />
+            </intent-filter>
+            
+            <!-- Add general URL handling for browser links -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
             </intent-filter>
         </activity>
 
@@ -122,5 +132,26 @@
             <data android:mimeType="text/plain"/>
         </intent>
         <package android:name="com.google.android.gms"/>
+        
+        <!-- Add explicit queries for map-related intents -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="geo" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="http" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+        <!-- Google Maps package -->
+        <package android:name="com.google.android.apps.maps"/>
     </queries>
 </manifest>

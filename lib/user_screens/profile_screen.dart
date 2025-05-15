@@ -6,12 +6,16 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 import 'package:pulsepoint_v2/providers/theme_provider.dart';
 import 'package:pulsepoint_v2/providers/auth_service.dart';
+import 'package:pulsepoint_v2/providers/donation_service.dart';
+import 'package:pulsepoint_v2/models/blood_donation_record.dart';
+import 'package:pulsepoint_v2/widgets/request_blood.dart';
 import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:pulsepoint_v2/widgets/star_rating.dart';
 import 'dart:io';
+import 'dart:math';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:pulsepoint_v2/screens/login_screen.dart';
@@ -40,43 +44,16 @@ class _ProfileScreenState extends State<ProfileScreen>
   static DateTime? _lastUserDataFetch;
   static const _userDataCacheTime = Duration(minutes: 5);
 
-  // Sample achievement data - in a real app, this would come from the database
-  final List<Map<String, dynamic>> achievements = [
-    {
-      'name': 'First Donation',
-      'icon': Icons.volunteer_activism,
-      'description': 'Completed your first blood donation',
-      'unlocked': true,
-      'date': DateTime.now().subtract(const Duration(days: 60)),
-    },
-    {
-      'name': 'Regular Donor',
-      'icon': Icons.repeat,
-      'description': 'Donated blood 3 times',
-      'unlocked': true,
-      'date': DateTime.now().subtract(const Duration(days: 30)),
-    },
-    {
-      'name': 'Lifesaver',
-      'icon': Icons.favorite,
-      'description': 'Helped save 5 lives through donations',
-      'unlocked': false,
-    },
-    {
-      'name': 'Community Hero',
-      'icon': Icons.people,
-      'description': 'Referred 3 friends to donate blood',
-      'unlocked': false,
-    },
-  ];
-
-  // Sample donation statistics - in a real app, this would be calculated from actual donation data
-  final Map<String, dynamic> donationStats = {
-    'totalDonations': 3,
-    'livesImpacted': 9,
-    'lastDonation': DateTime.now().subtract(const Duration(days: 45)),
-    'nextEligibleDate': DateTime.now().add(const Duration(days: 45)),
+  // Updated donation statistics - now calculated from actual donation data
+  Map<String, dynamic> donationStats = {
+    'totalDonations': 0,
+    'livesImpacted': 0,
+    'lastDonation': null,
+    'nextEligibleDate': null,
   };
+
+  // Dynamic achievements based on actual donation data
+  List<Map<String, dynamic>> achievements = [];
 
   // Cached widgets for performance
   final Widget _loadingIndicator = const Center(
@@ -99,6 +76,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _loadUserData();
+    _loadDonationStats();
 
     // Pre-load commonly used animations
     _preloadAnimations();
@@ -165,6 +143,166 @@ class _ProfileScreenState extends State<ProfileScreen>
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _loadDonationStats() async {
+    try {
+      final donationService = DonationService();
+
+      // Get user donations as a one-time fetch
+      final donations = await donationService.getUserDonations().first;
+
+      // Get completed donations count (both as donor and recipient)
+      final donatedCount = await donationService.getCompletedDonationCount();
+      final receivedCount = await donationService.getReceivedDonationCount();
+      final totalImpact = await donationService.getTotalImpact();
+
+      // Find the latest donation date
+      DateTime? lastDonationDate;
+      DateTime? nextEligibleDate;
+
+      // Filter completed donations where user is the donor to find last donation date
+      final completedDonations = donations
+          .where((donation) =>
+              donation.status == DonationStatus.completed &&
+              donation.donorId == _auth.currentUser?.uid)
+          .toList();
+
+      // Calculate statistics
+      if (completedDonations.isNotEmpty) {
+        // Sort by date to find the latest
+        completedDonations
+            .sort((a, b) => b.completionDate!.compareTo(a.completionDate!));
+
+        final latestDonation = completedDonations.first;
+        lastDonationDate = latestDonation.completionDate;
+        nextEligibleDate =
+            latestDonation.completionDate!.add(Duration(days: 90));
+      }
+
+      setState(() {
+        donationStats = {
+          'totalDonations': donatedCount,
+          'livesImpacted': totalImpact,
+          'lastDonation': lastDonationDate,
+          'nextEligibleDate': nextEligibleDate,
+        };
+
+        // Update achievements based on donation stats
+        _updateAchievements(completedDonations);
+      });
+
+      if (completedDonations.isEmpty) {
+        // No completed donations, initialize empty achievements
+        _initializeAchievements();
+      }
+    } catch (e) {
+      print('Error loading donation stats: $e');
+      // Initialize achievements even if there's an error
+      _initializeAchievements();
+    }
+  }
+
+  // Initialize achievements with locked status
+  void _initializeAchievements() {
+    setState(() {
+      achievements = [
+        {
+          'name': 'First Donation',
+          'icon': Icons.volunteer_activism,
+          'description': 'Complete your first blood donation',
+          'unlocked': false,
+          'progress': 0,
+          'target': 1,
+        },
+        {
+          'name': 'Regular Donor',
+          'icon': Icons.repeat,
+          'description': 'Donate blood 3 times',
+          'unlocked': false,
+          'progress': 0,
+          'target': 3,
+        },
+        {
+          'name': 'Lifesaver',
+          'icon': Icons.favorite,
+          'description': 'Help save 5 lives through donations',
+          'unlocked': false,
+          'progress': 0,
+          'target': 5,
+        },
+        {
+          'name': 'Blood Hero',
+          'icon': Icons.shield,
+          'description': 'Complete 10 blood donations',
+          'unlocked': false,
+          'progress': 0,
+          'target': 10,
+        },
+      ];
+    });
+  }
+
+  // Update achievements based on donation data
+  void _updateAchievements(List<BloodDonationRecord> completedDonations) {
+    final int totalDonations = completedDonations.length;
+    final int livesImpacted =
+        totalDonations * 3; // Each donation helps ~3 people
+
+    // Get the date of first donation for "First Donation" achievement
+    DateTime? firstDonationDate;
+    if (completedDonations.isNotEmpty) {
+      completedDonations
+          .sort((a, b) => a.completionDate!.compareTo(b.completionDate!));
+      firstDonationDate = completedDonations.first.completionDate;
+    }
+
+    setState(() {
+      achievements = [
+        {
+          'name': 'First Donation',
+          'icon': Icons.volunteer_activism,
+          'description': 'Complete your first blood donation',
+          'unlocked': totalDonations >= 1,
+          'progress': totalDonations >= 1 ? 1 : 0,
+          'target': 1,
+          'date': firstDonationDate,
+        },
+        {
+          'name': 'Regular Donor',
+          'icon': Icons.repeat,
+          'description': 'Donate blood 3 times',
+          'unlocked': totalDonations >= 3,
+          'progress': totalDonations > 3 ? 3 : totalDonations,
+          'target': 3,
+          'date':
+              totalDonations >= 3 ? completedDonations[2].completionDate : null,
+        },
+        {
+          'name': 'Lifesaver',
+          'icon': Icons.favorite,
+          'description': 'Help save 5 lives through donations',
+          'unlocked': livesImpacted >= 5,
+          'progress': livesImpacted > 5 ? 5 : livesImpacted,
+          'target': 5,
+          'date': livesImpacted >= 5
+              ? completedDonations[min(1, completedDonations.length - 1)]
+                  .completionDate
+              : null,
+        },
+        {
+          'name': 'Blood Hero',
+          'icon': Icons.shield,
+          'description': 'Complete 10 blood donations',
+          'unlocked': totalDonations >= 10,
+          'progress': totalDonations > 10 ? 10 : totalDonations,
+          'target': 10,
+          'date': totalDonations >= 10
+              ? completedDonations[9].completionDate
+              : null,
+        },
+      ];
+    });
   }
 
   Widget _buildProfileAvatar() {
@@ -641,86 +779,301 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Widget _buildAchievementTab() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Padding(
       padding: const EdgeInsets.all(16.0),
-      child: ListView.builder(
-        itemCount: achievements.length,
-        itemBuilder: (context, index) {
-          final achievement = achievements[index];
-          final isUnlocked = achievement['unlocked'] as bool;
-
-          return Card(
-            margin: EdgeInsets.only(bottom: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Your Achievements',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
             ),
-            child: ListTile(
-              contentPadding: EdgeInsets.all(16),
-              leading: Container(
-                padding: EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: isUnlocked
-                      ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
-                      : isDark
-                          ? Colors.grey[800]
-                          : Colors.grey[200],
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  achievement['icon'] as IconData,
-                  color: isUnlocked
-                      ? Theme.of(context).colorScheme.primary
-                      : isDark
-                          ? Colors.grey[600]
-                          : Colors.grey[400],
-                ),
-              ),
-              title: Text(
-                achievement['name'] as String,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: isUnlocked
-                      ? null
-                      : isDark
-                          ? Colors.grey[500]
-                          : Colors.grey[500],
-                ),
-              ),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+          SizedBox(height: 16),
+          Expanded(
+            child: ListView.builder(
+              itemCount: achievements.length,
+              itemBuilder: (context, index) {
+                final achievement = achievements[index];
+                final isUnlocked = achievement['unlocked'] as bool;
+                final progress = achievement['progress'] as int;
+                final target = achievement['target'] as int;
+                final progressPercent = progress / target;
+
+                return Card(
+                  margin: EdgeInsets.only(bottom: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: ListTile(
+                    contentPadding: EdgeInsets.all(16),
+                    leading: Container(
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isUnlocked
+                            ? Theme.of(context)
+                                .colorScheme
+                                .primary
+                                .withOpacity(0.1)
+                            : isDark
+                                ? Colors.grey[800]
+                                : Colors.grey[200],
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        achievement['icon'] as IconData,
+                        color: isUnlocked
+                            ? Theme.of(context).colorScheme.primary
+                            : isDark
+                                ? Colors.grey[600]
+                                : Colors.grey[400],
+                      ),
+                    ),
+                    title: Text(
+                      achievement['name'] as String,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: isUnlocked
+                            ? null
+                            : isDark
+                                ? Colors.grey[500]
+                                : Colors.grey[500],
+                      ),
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(height: 4),
+                        Text(
+                          achievement['description'] as String,
+                          style: TextStyle(
+                            color: isUnlocked
+                                ? null
+                                : isDark
+                                    ? Colors.grey[600]
+                                    : Colors.grey[600],
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        LinearProgressIndicator(
+                          value: progressPercent,
+                          backgroundColor:
+                              isDark ? Colors.grey[800] : Colors.grey[300],
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            isUnlocked ? colorScheme.primary : Colors.grey,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              '$progress/$target',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isUnlocked
+                                    ? colorScheme.primary
+                                    : Colors.grey,
+                              ),
+                            ),
+                            if (isUnlocked &&
+                                achievement.containsKey('date') &&
+                                achievement['date'] != null)
+                              Text(
+                                "Unlocked: ${DateFormat('MMM d, yyyy').format(achievement['date'])}",
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: colorScheme.primary,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    trailing: isUnlocked
+                        ? Icon(Icons.verified, color: Colors.green)
+                        : Icon(Icons.lock_outline, color: Colors.grey),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatisticsCard(bool isDark) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final now = DateTime.now();
+
+    // Check if there is donation history
+    final bool hasDonated = donationStats['lastDonation'] != null;
+
+    // Calculate days until next eligible donation date
+    int daysUntilNextDonation = 0;
+    bool canDonateNow = false;
+
+    if (hasDonated) {
+      final nextEligible = donationStats['nextEligibleDate'] as DateTime;
+      if (now.isAfter(nextEligible)) {
+        canDonateNow = true;
+      } else {
+        daysUntilNextDonation = nextEligible.difference(now).inDays + 1;
+      }
+    }
+
+    return SizedBox(
+      width: double.infinity,
+      child: Card(
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  SizedBox(height: 4),
                   Text(
-                    achievement['description'] as String,
+                    'Donation Statistics',
                     style: TextStyle(
-                      color: isUnlocked
-                          ? null
-                          : isDark
-                              ? Colors.grey[600]
-                              : Colors.grey[600],
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                  if (isUnlocked && achievement.containsKey('date'))
+                  Icon(
+                    Icons.favorite,
+                    color: Colors.red,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildStatItem(
+                    'Donations',
+                    donationStats['totalDonations'].toString(),
+                    Icons.volunteer_activism,
+                    isDark ? colorScheme.primary : Color(0xFFFF5F6D),
+                  ),
+                  _buildStatItem(
+                    'Lives Impacted',
+                    donationStats['livesImpacted'].toString(),
+                    Icons.favorite,
+                    isDark ? colorScheme.secondary : Color(0xFFFF5F6D),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (hasDonated) ...[
+                Text(
+                  'Last Donation',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white70 : Colors.black54,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  DateFormat('MMMM d, yyyy')
+                      .format(donationStats['lastDonation']),
+                  style: TextStyle(fontSize: 16),
+                ),
+                const SizedBox(height: 12),
+                canDonateNow
+                    ? Row(
+                        children: [
+                          Icon(Icons.check_circle,
+                              color: Colors.green, size: 16),
+                          const SizedBox(width: 4),
+                          Text(
+                            'You are eligible to donate again!',
+                            style: TextStyle(
+                                color: Colors.green,
+                                fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          Icon(Icons.event, color: Colors.orange, size: 16),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Next eligible in $daysUntilNextDonation days',
+                            style: TextStyle(color: Colors.orange),
+                          ),
+                        ],
+                      ),
+              ] else
+                Column(
+                  children: [
                     Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
                       child: Text(
-                        "Unlocked: ${DateFormat('MMM d, yyyy').format(achievement['date'])}",
+                        'No donations recorded yet',
                         style: TextStyle(
-                          fontSize: 12,
-                          color: Theme.of(context).colorScheme.primary,
+                          fontStyle: FontStyle.italic,
+                          color: isDark ? Colors.white60 : Colors.black54,
                         ),
                       ),
                     ),
-                ],
-              ),
-              trailing: isUnlocked
-                  ? Icon(Icons.verified, color: Colors.green)
-                  : Icon(Icons.lock_outline, color: Colors.grey),
-            ),
-          );
-        },
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        // Navigate to blood donation screen
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => BloodPage(),
+                          ),
+                        );
+                      },
+                      icon: Icon(Icons.volunteer_activism),
+                      label: Text('Donate Now'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: colorScheme.primary,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+        ),
       ),
+    );
+  }
+
+  Widget _buildStatItem(
+      String title, String value, IconData icon, Color color) {
+    return Column(
+      children: [
+        Icon(icon, color: color),
+        SizedBox(height: 4),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 14,
+            color: Theme.of(context).brightness == Brightness.dark
+                ? Colors.grey[400]
+                : Colors.grey[600],
+          ),
+        ),
+        SizedBox(height: 2),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
     );
   }
 
@@ -737,100 +1090,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           SizedBox(height: 16),
 
           // Donation stats cards
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatCard(
-                  "Donations",
-                  donationStats['totalDonations'].toString(),
-                  Icons.bloodtype,
-                  colorScheme.primary,
-                ),
-              ),
-              SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  "Lives Impacted",
-                  donationStats['livesImpacted'].toString(),
-                  Icons.favorite,
-                  Colors.red,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 16),
-
-          // Last donation & next eligibility
-          Card(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Donation Timeline",
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  SizedBox(height: 16),
-                  _buildTimelineItem(
-                    "Last Donation",
-                    DateFormat('MMM d, yyyy')
-                        .format(donationStats['lastDonation']),
-                    Icons.history,
-                    Colors.blue,
-                  ),
-                  SizedBox(height: 16),
-                  _buildTimelineItem(
-                    "Next Eligible Date",
-                    DateFormat('MMM d, yyyy')
-                        .format(donationStats['nextEligibleDate']),
-                    Icons.event_available,
-                    Colors.green,
-                  ),
-
-                  // Blood donation eligibility progress
-                  SizedBox(height: 24),
-                  Text(
-                    "Eligibility Progress",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  LinearProgressIndicator(
-                    value: _calculateEligibilityProgress(),
-                    backgroundColor:
-                        isDark ? Colors.grey[800] : Colors.grey[200],
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      _calculateEligibilityProgress() >= 1.0
-                          ? Colors.green
-                          : Colors.orange,
-                    ),
-                    minHeight: 8,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    _calculateEligibilityProgress() >= 1.0
-                        ? "You're eligible to donate again!"
-                        : "You'll be eligible in ${_getDaysUntilEligible()} days",
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: _calculateEligibilityProgress() >= 1.0
-                          ? Colors.green
-                          : Colors.orange,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          _buildStatisticsCard(isDark),
 
           SizedBox(height: 16),
 
@@ -887,104 +1147,6 @@ class _ProfileScreenState extends State<ProfileScreen>
         ],
       ),
     );
-  }
-
-  Widget _buildTimelineItem(
-      String title, String date, IconData icon, Color color) {
-    return Row(
-      children: [
-        Container(
-          padding: EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, color: color, size: 20),
-        ),
-        SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey,
-              ),
-            ),
-            Text(
-              date,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatCard(
-      String title, String value, IconData icon, Color color) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () {
-          HapticFeedback.lightImpact();
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, color: color),
-              ),
-              SizedBox(height: 12),
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: isDark ? Colors.grey[400] : Colors.grey[600],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  double _calculateEligibilityProgress() {
-    final lastDonation = donationStats['lastDonation'] as DateTime;
-    final nextEligible = donationStats['nextEligibleDate'] as DateTime;
-    final totalDays = nextEligible.difference(lastDonation).inDays;
-    final daysPassed = DateTime.now().difference(lastDonation).inDays;
-
-    return daysPassed / totalDays;
-  }
-
-  int _getDaysUntilEligible() {
-    final nextEligible = donationStats['nextEligibleDate'] as DateTime;
-    return nextEligible.difference(DateTime.now()).inDays;
   }
 
   Widget _buildProfileTab() {

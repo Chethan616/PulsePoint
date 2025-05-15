@@ -7,10 +7,20 @@ PulsePoint is an open-source mobile application built with Flutter that connects
 - **User Authentication:** Secure phone authentication system
 - **Blood Request Management:** Create, browse, and respond to blood donation requests
 - **Real-time Messaging:** Direct communication between donors and recipients
-- **Location Services:** Find nearby donation requests and blood donation centers
+- **Location Services:** 
+  - Find nearby donation requests and blood donation centers
+  - "Find Nearby Hospitals" with integrated map navigation
+  - Multiple map app support (Google Maps, Apple Maps, etc.)
+- **Health Information:**
+  - Blood type compatibility information
+  - Health tips and reminders
+  - Home screen widget for daily health tips
 - **Profile Management:** Manage your blood type, donation history, and personal information
 - **Notifications:** Receive alerts for matching blood requests
 - **Dark/Light Mode:** Choose your preferred app theme
+- **Home Screen Widget:** Daily health tips widget for your device's home screen
+- **Customization:** Personalize your experience with various app settings
+- **Widget Troubleshooter:** Easily diagnose and fix home screen widget issues
 
 ## Screenshots
 
@@ -47,6 +57,11 @@ PulsePoint is an open-source mobile application built with Flutter that connects
 - **Backend:** Firebase (Authentication, Firestore, Storage, Messaging)
 - **State Management:** Provider
 - **Notifications:** Firebase Cloud Messaging, Flutter Local Notifications
+- **Map Integration:** map_launcher, url_launcher
+- **Native Integration:** 
+  - Method Channels for Flutter-Native communication
+  - Android AppWidgetProvider for home screen widgets
+  - SharedPreferences for persistent data storage
 
 ## Getting Started
 
@@ -119,6 +134,55 @@ To implement Firebase Phone Authentication with SHA certificates:
    - Set up URL schemes and bundle identifiers
 
 For detailed implementation instructions, refer to the [Firebase Phone Authentication documentation](https://firebase.google.com/docs/auth/flutter/phone-auth).
+
+## Home Screen Widget Setup
+
+PulsePoint includes an Android home screen widget that displays daily health tips. The implementation involves:
+
+1. **Native Android Integration:**
+   - The widget is implemented using Android's AppWidgetProvider
+   - Communication between Flutter and native code uses MethodChannel
+   - Data is stored in SharedPreferences for persistence
+
+2. **Widget Features:**
+   - Daily updated health tips
+   - Tap functionality to open the app
+   - Automatic updates at configurable intervals
+
+3. **Troubleshooting:**
+   - The app includes a dedicated Widget Troubleshooter in Settings
+   - This tool helps diagnose and fix common widget issues
+   - Users can manually refresh widget data and test functionality
+
+4. **Developer Notes:**
+   - Widget data is stored redundantly in multiple SharedPreferences locations
+   - Comprehensive logging helps identify potential issues
+   - The implementation handles various edge cases for improved reliability
+
+## Map Integration
+
+PulsePoint provides map integration to help users locate nearby hospitals and blood donation centers:
+
+1. **Multi-app Support:**
+   - Integration with various map applications (Google Maps, Apple Maps, etc.)
+   - Uses the map_launcher package to detect and open available map apps
+   - Fallback options if preferred map app is unavailable
+
+2. **Features:**
+   - "Find Nearby Hospitals" functionality
+   - Direction guidance to selected locations
+   - Search for blood donation centers in the vicinity
+
+3. **Implementation Details:**
+   - Custom URL formatting for different map services
+   - Proper AndroidManifest.xml configuration with intent filters
+   - Comprehensive error handling with user-friendly fallbacks
+   - Support for both address-based and coordinate-based location finding
+
+4. **User Experience:**
+   - Seamless transition from app to maps
+   - Options to choose preferred map application
+   - Clear error messages and alternatives if map launch fails
 
 ## Contributing
 

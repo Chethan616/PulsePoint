@@ -67,8 +67,13 @@ class _WidgetsSettingsScreenState extends State<WidgetsSettingsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Home Screen Widgets'),
-        elevation: 0,
+        title: Text(
+          'Home Screen Widgets',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        centerTitle: true,
       ),
       body: _isLoading
           ? Center(child: CircularProgressIndicator())
@@ -78,33 +83,79 @@ class _WidgetsSettingsScreenState extends State<WidgetsSettingsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildHeaderSection(),
-                  SizedBox(height: 24),
+                  SizedBox(height: 20),
 
-                  // Emergency Options Widget Preview
-                  _buildSectionHeader('Emergency Options Widget'),
-                  SizedBox(height: 8),
-                  EmergencyOptionsWidget(),
-                  SizedBox(height: 16),
-
-                  // Emergency Number Settings
+                  // Emergency Number Section
+                  _buildSectionHeader('Emergency Number'),
+                  SizedBox(height: 12),
                   _buildInputField(
-                    title: 'Emergency Number',
+                    title: 'Emergency Contact Number',
                     hint: 'Enter emergency number',
                     controller: _emergencyNumberController,
                     keyboardType: TextInputType.phone,
                     onSubmitted: (_) => _updateEmergencyNumber(),
                   ),
-                  SizedBox(height: 8),
+                  SizedBox(height: 12),
                   ElevatedButton(
                     onPressed: _updateEmergencyNumber,
                     child: Text('Update Emergency Number'),
                   ),
                   SizedBox(height: 32),
 
+                  // Preview Section
+                  _buildSectionHeader('Widget Previews'),
+                  SizedBox(height: 16),
+                  Text(
+                    'These widgets can be added to your home screen for quick access:',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                  SizedBox(height: 20),
+
                   // Health Tip Widget Preview
-                  _buildSectionHeader('Health Tip Widget'),
-                  SizedBox(height: 8),
-                  HealthTipWidget(),
+                  Container(
+                    width: double.infinity,
+                    child: HealthTipWidget(),
+                  ),
+                  SizedBox(height: 20),
+
+                  // Emergency Options Widget Preview
+                  Container(
+                    width: double.infinity,
+                    child: EmergencyOptionsWidget(),
+                  ),
+                  SizedBox(height: 32),
+
+                  // Fix Widgets Section
+                  _buildSectionHeader('Troubleshoot Widgets'),
+                  SizedBox(height: 12),
+                  Text(
+                    'If your widgets are not displaying correctly, try refreshing them:',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                  SizedBox(height: 16),
+
+                  // Widget Refresh Button
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Refreshing widgets...')),
+                      );
+
+                      await HomeScreenWidgetManager.forceRefreshAllWidgets();
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                            content: Text('Widgets refreshed successfully')),
+                      );
+                    },
+                    icon: Icon(Icons.refresh),
+                    label: Text('Refresh All Widgets'),
+                    style: ElevatedButton.styleFrom(
+                      padding:
+                          EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                      textStyle: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
                   SizedBox(height: 16),
 
                   // Health Tip Refresh Button

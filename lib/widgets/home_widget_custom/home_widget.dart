@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// A simpler implementation of home_widget functionality
 /// to avoid compatibility issues with the original package
@@ -10,7 +11,24 @@ class HomeWidgetCustom {
   /// Save data to be used by the home screen widget
   static Future<bool> saveWidgetData(String id, dynamic data) async {
     try {
+      // Call original method to save via method channel
       await _channel.invokeMethod('saveWidgetData', {'id': id, 'data': data});
+
+      // Also save in SharedPreferences to ensure redundancy
+      try {
+        final prefs = await SharedPreferences.getInstance();
+
+        // Save in normal SharedPreferences
+        await prefs.setString(id, data.toString());
+
+        // Also save with flutter. prefix for compatibility
+        await prefs.setString('flutter.$id', data.toString());
+
+        print('Saved widget data in multiple locations: $id = $data');
+      } catch (e) {
+        print('Error saving widget data in SharedPreferences: $e');
+      }
+
       return true;
     } catch (e) {
       print('Error saving widget data: $e');

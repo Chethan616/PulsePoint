@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:pulsepoint_v2/widgets/home_widget_custom/home_widget.dart';
+import 'package:home_widget/home_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:math';
@@ -24,17 +24,28 @@ class HomeScreenWidgetManager {
   // Initialize home screen widgets
   static Future<void> initialize() async {
     try {
-      await HomeWidgetCustom.setAppGroupId('group.com.example.pulsepoint_v2');
+      // Configure for both platforms
+      await HomeWidget.setAppGroupId('group.com.example.pulsepoint_v2');
 
-      // Register background callbacks for widgets
-      HomeWidgetCustom.registerBackgroundCallback(backgroundCallback);
+      // Set up background handlers
+      await HomeWidget.registerBackgroundCallback(backgroundCallback);
 
-      // Initialize widgets with data
+      // Initialize widget data
       await refreshHealthTipWidget();
       await updateEmergencyNumber('108'); // Default number
 
-      // Listen for widget launches
-      HomeWidgetCustom.widgetClicked.listen(_handleWidgetClick);
+      // Update the widgets
+      await HomeWidget.updateWidget(
+        name: 'HealthTipWidgetProvider',
+        androidName: 'HealthTipWidgetProvider',
+        iOSName: 'HealthTipWidget',
+      );
+
+      await HomeWidget.updateWidget(
+        name: 'EmergencyOptionsWidgetProvider',
+        androidName: 'EmergencyOptionsWidgetProvider',
+        iOSName: 'EmergencyOptionsWidget',
+      );
 
       print('Home screen widgets initialized successfully');
     } catch (e) {
@@ -43,11 +54,16 @@ class HomeScreenWidgetManager {
   }
 
   // Background callback for widget actions
+  @pragma('vm:entry-point')
   static Future<void> backgroundCallback(Uri? uri) async {
-    if (uri?.host == 'refreshtip') {
+    if (uri == null) return;
+
+    print('Background callback triggered with URI: $uri');
+
+    if (uri.host == 'refreshtip') {
       await refreshHealthTipWidget();
-    } else if (uri?.host == 'emergency') {
-      if (uri?.path == '/call') {
+    } else if (uri.host == 'emergency') {
+      if (uri.path == '/call') {
         final prefs = await SharedPreferences.getInstance();
         final emergencyNumber = prefs.getString(_emergencyNumberKey) ?? '108';
 
@@ -59,23 +75,6 @@ class HomeScreenWidgetManager {
     }
   }
 
-  // Handle widget clicks
-  static Future<void> _handleWidgetClick(Uri? uri) async {
-    print('Widget clicked with URI: $uri');
-
-    if (uri?.host == 'refreshtip') {
-      await refreshHealthTipWidget();
-    } else if (uri?.host == 'emergency') {
-      if (uri?.path == '/hospitals') {
-        // Handle finding hospitals
-        print('Finding nearby hospitals from widget click');
-      } else if (uri?.path == '/blood_request') {
-        // Handle blood request
-        print('Opening blood request from widget click');
-      }
-    }
-  }
-
   // Refresh the health tip widget
   static Future<void> refreshHealthTipWidget() async {
     try {
@@ -83,14 +82,19 @@ class HomeScreenWidgetManager {
       final random = Random();
       final newTip = _healthTips[random.nextInt(_healthTips.length)];
 
-      // Save to shared preferences
+      // Save to shared preferences (for Flutter access)
       await prefs.setString(_healthTipKey, newTip);
 
-      // Save to widget
-      await HomeWidgetCustom.saveWidgetData('tip', newTip);
+      // Save for widget access
+      await HomeWidget.saveWidgetData<String>('tip', newTip);
 
-      // Update widget
-      await HomeWidgetCustom.updateWidget(
+      // For backward compatibility, save with other keys too
+      await prefs.setString('flutter.current_health_tip', newTip);
+      await prefs.setString('tip', newTip);
+      await prefs.setString('flutter.tip', newTip);
+
+      // Update the widget
+      await HomeWidget.updateWidget(
         name: 'HealthTipWidgetProvider',
         androidName: 'HealthTipWidgetProvider',
         iOSName: 'HealthTipWidget',
@@ -102,17 +106,39 @@ class HomeScreenWidgetManager {
     }
   }
 
+  // Force refresh all widgets
+  static Future<void> forceRefreshAllWidgets() async {
+    try {
+      print('Force refreshing all widgets...');
+
+      // Refresh health tip widget
+      await refreshHealthTipWidget();
+
+      // Refresh emergency widget (if needed)
+      final prefs = await SharedPreferences.getInstance();
+      final emergencyNumber = prefs.getString(_emergencyNumberKey) ?? '108';
+      await updateEmergencyNumber(emergencyNumber);
+
+      print('All widgets refreshed successfully');
+    } catch (e) {
+      print('Error force refreshing widgets: $e');
+    }
+  }
+
   // Update emergency contact number
   static Future<void> updateEmergencyNumber(String number) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_emergencyNumberKey, number);
 
-      // Save to widget
-      await HomeWidgetCustom.saveWidgetData('emergency_number', number);
+      // Save for widget access
+      await HomeWidget.saveWidgetData<String>('emergency_number', number);
+
+      // For backward compatibility
+      await prefs.setString('flutter.emergency_number', number);
 
       // Update widget
-      await HomeWidgetCustom.updateWidget(
+      await HomeWidget.updateWidget(
         name: 'EmergencyOptionsWidgetProvider',
         androidName: 'EmergencyOptionsWidgetProvider',
         iOSName: 'EmergencyOptionsWidget',

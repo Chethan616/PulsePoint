@@ -361,11 +361,17 @@ class _HistoryScreenState extends State<HistoryScreen>
 
     final statusColor = _getDonationStatusColor(donation.status, context);
 
+    // Highlight completed donations with a special border
+    final bool isCompleted = donation.status == DonationStatus.completed;
+
     return Card(
       margin: EdgeInsets.only(bottom: 12),
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
+        side: isCompleted
+            ? BorderSide(color: Colors.green, width: 2)
+            : BorderSide.none,
       ),
       child: ListTile(
         contentPadding: EdgeInsets.all(16),
@@ -388,18 +394,35 @@ class _HistoryScreenState extends State<HistoryScreen>
             ],
           ),
           child: Icon(
-            isRecipient ? Icons.arrow_downward : Icons.arrow_upward,
+            isCompleted
+                ? Icons.favorite
+                : (isRecipient ? Icons.arrow_downward : Icons.arrow_upward),
             color: Colors.white,
             size: 24,
           ),
         ),
-        title: Text(
-          isRecipient
-              ? "Received from $otherPersonName"
-              : "Donated to $otherPersonName",
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                isRecipient
+                    ? "Received from $otherPersonName"
+                    : "Donated to $otherPersonName",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            if (isCompleted)
+              Tooltip(
+                message: 'Life saved through donation',
+                child: Icon(
+                  Icons.favorite,
+                  color: Colors.red,
+                  size: 18,
+                ),
+              ),
+          ],
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -436,12 +459,33 @@ class _HistoryScreenState extends State<HistoryScreen>
             SizedBox(height: 4),
             Text("Hospital: ${donation.hospitalName}"),
             SizedBox(height: 4),
-            Text(
-              date,
-              style: TextStyle(
-                fontSize: 12,
-                color: Theme.of(context).textTheme.bodyMedium?.color,
-              ),
+            Row(
+              children: [
+                Text(
+                  date,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).textTheme.bodyMedium?.color,
+                  ),
+                ),
+                if (donation.completionDate != null) ...[
+                  Text(
+                    " • Completed: ",
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).textTheme.bodyMedium?.color,
+                    ),
+                  ),
+                  Text(
+                    DateFormat('MMM d, yyyy').format(donation.completionDate!),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ],
         ),

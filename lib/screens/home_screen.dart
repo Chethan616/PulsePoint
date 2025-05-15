@@ -15,6 +15,8 @@ import 'package:pulsepoint_v2/widgets/donate_blood.dart';
 import 'package:pulsepoint_v2/widgets/request_blood.dart';
 import 'package:pulsepoint_v2/utilities/location_utils.dart';
 import 'dart:math' as math;
+import 'dart:io' show Platform;
+import 'package:map_launcher/map_launcher.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -656,28 +658,168 @@ class _HomeScreenState extends State<HomeScreen>
       Position position = await Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.high);
 
-      // Open Google Maps with nearby hospitals query
-      final url =
-          'https://www.google.com/maps/search/?api=1&query=hospitals+near+me&query_place_id=${position.latitude},${position.longitude}';
+      // Try to open maps with map_launcher package
+      await _openMapsWithMapLauncher(position.latitude, position.longitude);
 
-      if (await canLaunchUrl(Uri.parse(url))) {
-        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-        setState(() {
-          _isLoading = false;
-          _locationMessage = 'Showing nearby hospitals on Google Maps';
-        });
-      } else {
-        setState(() {
-          _isLoading = false;
-          _locationMessage = 'Could not launch maps. Please try again.';
-        });
-      }
+      setState(() {
+        _isLoading = false;
+      });
     } catch (e) {
       setState(() {
         _isLoading = false;
         _locationMessage = 'Error: ${e.toString()}';
+        print('Error finding hospitals: ${e.toString()}');
       });
     }
+  }
+
+  Future<void> _openMapsWithMapLauncher(
+      double latitude, double longitude) async {
+    try {
+      final availableMaps = await MapLauncher.installedMaps;
+      print(
+          'Available maps: ${availableMaps.map((e) => e.mapName).join(', ')}');
+
+      if (availableMaps.isEmpty) {
+        setState(() {
+          _locationMessage = 'No map apps found on your device.';
+        });
+        return;
+      }
+
+      // Prefer Google Maps if available
+      final googleMaps =
+          availableMaps.where((map) => map.mapType == MapType.google).toList();
+
+      if (googleMaps.isNotEmpty) {
+        await googleMaps.first.showMarker(
+          coords: Coords(latitude, longitude),
+          title: "Your Location",
+          description: "Hospitals near this location",
+          extraParams: {
+            'q': 'hospitals',
+            'zoom': '14',
+          },
+        );
+        setState(() {
+          _locationMessage =
+              'Showing nearby hospitals in ${googleMaps.first.mapName}';
+        });
+      } else {
+        // If Google Maps is not available, show map selection dialog
+        if (availableMaps.length == 1) {
+          // If only one map is available, use it directly
+          await availableMaps.first.showMarker(
+            coords: Coords(latitude, longitude),
+            title: "Your Location",
+            description: "Hospitals near this location",
+          );
+          setState(() {
+            _locationMessage =
+                'Showing nearby hospitals in ${availableMaps.first.mapName}';
+          });
+        } else {
+          // Let user select from multiple maps
+          showDialog(
+            context: context,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                title: Text('Choose Map App'),
+                content: Container(
+                  width: double.maxFinite,
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: availableMaps.length,
+                    itemBuilder: (BuildContext context, int index) {
+                      return ListTile(
+                        title: Text(availableMaps[index].mapName),
+                        onTap: () async {
+                          Navigator.pop(context);
+                          await availableMaps[index].showMarker(
+                            coords: Coords(latitude, longitude),
+                            title: "Your Location",
+                            description: "Hospitals near this location",
+                          );
+                          setState(() {
+                            _locationMessage =
+                                'Showing nearby hospitals in ${availableMaps[index].mapName}';
+                          });
+                        },
+                      );
+                    },
+                  ),
+                ),
+              );
+            },
+          );
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _locationMessage = 'Error launching maps: ${e.toString()}';
+      });
+      print('Error launching maps: $e');
+
+      // Fallback: try to launch with our custom method
+      bool launched = await _legacyLaunchMaps(latitude, longitude, 'hospitals');
+      if (launched) {
+        setState(() {
+          _locationMessage = 'Showing nearby hospitals';
+        });
+      } else {
+        setState(() {
+          _locationMessage =
+              'Could not launch maps. Your coordinates are: $latitude, $longitude';
+        });
+      }
+    }
+  }
+
+  // Keep this as a fallback method
+  Future<bool> _legacyLaunchMaps(
+      double latitude, double longitude, String query) async {
+    String url = '';
+    bool launched = false;
+
+    // Try different approaches based on platform
+    if (Platform.isAndroid) {
+      // Try geo URI first (works with Google Maps)
+      url = 'geo:$latitude,$longitude?q=$query';
+      if (await canLaunchUrl(Uri.parse(url))) {
+        launched = await launchUrl(Uri.parse(url));
+        print('Tried launching with geo URI: $url, result: $launched');
+        if (launched) return true;
+      }
+
+      // Try direct intent to Google Maps
+      url = 'google.navigation:q=$query+near+$latitude,$longitude';
+      if (await canLaunchUrl(Uri.parse(url))) {
+        launched = await launchUrl(Uri.parse(url));
+        print(
+            'Tried launching with navigation intent: $url, result: $launched');
+        if (launched) return true;
+      }
+    }
+
+    // Try universal maps.google.com URL (works on most platforms and browsers)
+    url = 'https://maps.google.com/?q=$query+near+$latitude,$longitude';
+    if (await canLaunchUrl(Uri.parse(url))) {
+      launched =
+          await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      print('Tried launching maps.google.com: $url, result: $launched');
+      if (launched) return true;
+    }
+
+    // Last resort: try a regular Google search
+    url = 'https://www.google.com/search?q=$query+near+$latitude,$longitude';
+    if (await canLaunchUrl(Uri.parse(url))) {
+      launched =
+          await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      print('Tried launching Google search: $url, result: $launched');
+      if (launched) return true;
+    }
+
+    return false;
   }
 
   void _showEmergencyOptions(BuildContext context) {

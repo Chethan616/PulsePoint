@@ -33,6 +33,32 @@ class ActivityService {
     }
   }
 
+  Future<void> recordActivityForUser({
+    required String userId,
+    required ActivityType type,
+    required String title,
+    required String description,
+    Map<String, dynamic>? additionalData,
+  }) async {
+    if (userId.isEmpty) return;
+
+    try {
+      await _firestore.collection('activities').add(
+            ActivityRecord(
+              id: '',
+              userId: userId,
+              type: type,
+              timestamp: DateTime.now(),
+              title: title,
+              description: description,
+              additionalData: additionalData,
+            ).toFirestore(),
+          );
+    } catch (e) {
+      print('Error recording activity for user $userId: $e');
+    }
+  }
+
   Stream<List<ActivityRecord>> getUserActivities() {
     if (_userId.isEmpty) {
       return Stream.value([]);

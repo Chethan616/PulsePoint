@@ -6,6 +6,7 @@ import 'package:pulsepoint_v2/utilities/location_utils.dart';
 import 'package:pulsepoint_v2/widgets/location_message.dart';
 import 'package:pulsepoint_v2/user_screens/other_profiles.dart';
 import 'package:pulsepoint_v2/services/notification_service.dart';
+import 'package:pulsepoint_v2/providers/donation_service.dart';
 
 class BloodPage extends StatefulWidget {
   @override
@@ -445,6 +446,7 @@ class _ThreadDetailPageState extends State<ThreadDetailPage> {
 
   Widget _buildReplyCard(DocumentSnapshot reply) {
     Map<String, dynamic> data = reply.data() as Map<String, dynamic>;
+    bool isOffer = data['isOffer'] == true;
 
     // Check if this is a location message
     if (data['type'] == 'location') {
@@ -497,10 +499,41 @@ class _ThreadDetailPageState extends State<ThreadDetailPage> {
             ),
             SizedBox(height: 4),
             Text(data['content']),
-            if (data['isOffer'] == true)
+            if (isOffer)
               Chip(
                 label: Text('OFFERED HELP'),
                 backgroundColor: Colors.green[100],
+              ),
+            // Add Accept Help button - only show to thread author for offers
+            if (isOffer)
+              FutureBuilder<List<bool>>(
+                future: Future.wait([_isThreadAuthor(), _isThreadClosed()]),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return SizedBox
+                        .shrink(); // Don't show anything while loading
+                  }
+
+                  bool isAuthor = snapshot.data?[0] ?? false;
+                  bool isClosed = snapshot.data?[1] ?? true;
+
+                  if (isAuthor && !isClosed) {
+                    return Align(
+                      alignment: Alignment.centerRight,
+                      child: ElevatedButton.icon(
+                        onPressed: () => _acceptHelpOffer(reply),
+                        icon: Icon(Icons.check_circle),
+                        label: Text('Accept Help'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    );
+                  } else {
+                    return SizedBox.shrink(); // Don't show the button
+                  }
+                },
               ),
           ],
         ),
@@ -805,6 +838,111 @@ class _ThreadDetailPageState extends State<ThreadDetailPage> {
           }),
         ),
       );
+    }
+  }
+
+  // Add helper method to check if current user is thread author
+  Future<bool> _isThreadAuthor() async {
+    try {
+      DocumentSnapshot doc = await _firestore
+          .collection('blood_requests')
+          .doc(widget.threadId)
+          .get();
+      return doc['authorId'] == _currentUser?.uid;
+    } catch (e) {
+      print('Error checking thread author: $e');
+      return false;
+    }
+  }
+
+  // Add helper method to check if thread is closed
+  Future<bool> _isThreadClosed() async {
+    try {
+      DocumentSnapshot doc = await _firestore
+          .collection('blood_requests')
+          .doc(widget.threadId)
+          .get();
+      return doc['status'] == 'closed';
+    } catch (e) {
+      print('Error checking thread status: $e');
+      return true; // Assume closed on error
+    }
+  }
+
+  // Implement accept help functionality
+  Future<void> _acceptHelpOffer(DocumentSnapshot reply) async {
+    try {
+      Map<String, dynamic> data = reply.data() as Map<String, dynamic>;
+      String donorId = data['authorId'];
+      String donorName = data['authorName'];
+
+      // Get thread data to fill donation request details
+      DocumentSnapshot threadDoc = await _firestore
+          .collection('blood_requests')
+          .doc(widget.threadId)
+          .get();
+
+      Map<String, dynamic> threadData =
+          threadDoc.data() as Map<String, dynamic>;
+      String recipientName = threadData['authorName'];
+      String bloodType = threadData['bloodType'] ?? 'Unknown';
+
+      // Create donation record
+      final donationService = DonationService();
+      String? donationId = await donationService.createDonationRequest(
+        donorId: donorId,
+        donorName: donorName,
+        recipientName: recipientName,
+        donorPhone: 'Unknown', // These would be populated in a real app
+        recipientPhone: 'Unknown',
+        bloodType: bloodType,
+        location: 'From blood request thread',
+        hospitalName: 'To be determined',
+        notes: 'Accepted from blood request thread: ${threadData['title']}',
+        additionalData: {
+          'threadId': widget.threadId,
+          'offerId': reply.id,
+        },
+      );
+
+      if (donationId != null) {
+        // Mark the thread as closed since help was accepted
+        await _firestore
+            .collection('blood_requests')
+            .doc(widget.threadId)
+            .update({'status': 'closed'});
+
+        // Add a system message to the thread
+        await _firestore
+            .collection('blood_requests')
+            .doc(widget.threadId)
+            .collection('replies')
+            .add({
+          'content':
+              '${recipientName} has accepted help from ${donorName}. This request is now closed.',
+          'authorId': 'system',
+          'authorName': 'System',
+          'timestamp': DateTime.now(),
+          'isOffer': false,
+          'type': 'text',
+          'isSystem': true,
+        });
+
+        // Automatically mark the donation as completed for statistics tracking
+        await donationService.completeDonation(donationId);
+
+        // Show confirmation
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+                'Help offer accepted! A donation record has been created.')));
+
+        // Refresh the UI
+        setState(() {});
+      }
+    } catch (e) {
+      print('Error accepting help offer: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error accepting help offer: $e')));
     }
   }
 }
