@@ -60,6 +60,7 @@ dependencies:
   map_launcher: ^3.5.0
   awesome_notifications: ^0.10.1
   # home_widget: 0.7.0+1
+  render: ^0.1.4
   
 dev_dependencies:
   flutter_test:
