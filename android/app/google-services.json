@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "555587912223",
+    "project_id": "pulse-point-pulse-point",
+    "storage_bucket": "pulse-point-pulse-point.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:555587912223:android:ffdcf4c308c6ad1ca80b2a",
+        "android_client_info": {
+          "package_name": "com.example.pulsepoint_v2"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDhul8Xd7erUyhJsAaFXDOqbjaF-3hYyI4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
