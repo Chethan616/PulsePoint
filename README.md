@@ -24,9 +24,9 @@ PulsePoint is an open-source mobile application built with Flutter that connects
 
 ## Screenshots
 <p float="center">
-  <img src="ScreenShots/11.jpg" width="200" />
-  <img src="ScreenShots/2.jpg" width="200" /> 
-  <img src="ScreenShots/3.jpg" width="200" />
+  <img src="ScreenShots/1.png" width="200" />
+  <img src="ScreenShots/2.png" width="200" /> 
+  <img src="ScreenShots/3.png" width="200" />
 </p>
 
 ### Light Mode
